@@ -1,0 +1,1452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>From Logits to Gradients — Softmax, Cross-Entropy Loss, and Backpropagation</title>
+  <meta name="description" content="An intuitive, visual walkthrough of how neural networks turn raw logits into probabilities via softmax, measure loss with cross-entropy, scale with temperature, and compute elegant gradients for backpropagation.">
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
+  <style>
+    :root {
+      --bg-paper: #faf9f5;
+      --bg-card: #ffffff;
+      --ink-primary: #1e242b;
+      --ink-secondary: #4a5568;
+      --ink-muted: #718096;
+      --accent-blue: #2b6cb0;
+      --accent-teal: #0d9488;
+      --accent-amber: #d97706;
+      --accent-rose: #e11d48;
+      --border-subtle: #e5e2dc;
+    }
+    body {
+      background-color: var(--bg-paper);
+      color: var(--ink-primary);
+      font-family: 'Newsreader', Georgia, Cambria, "Times New Roman", Times, serif;
+      font-size: 1.15rem;
+      line-height: 1.78;
+      -webkit-font-smoothing: antialiased;
+    }
+    .font-sans-ui {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    .font-mono-code {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .math-block {
+      background: #ffffff;
+      border: 1px solid #e6e4dd;
+      border-left: 4px solid #2b6cb0;
+      border-radius: 0.5rem;
+      padding: 1.1rem 1.4rem;
+      margin: 1.5rem 0;
+      overflow-x: auto;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+    }
+    .math-block-teal {
+      background: #ffffff;
+      border: 1px solid #d1e7e4;
+      border-left: 4px solid #0d9488;
+      border-radius: 0.5rem;
+      padding: 1.1rem 1.4rem;
+      margin: 1.5rem 0;
+      overflow-x: auto;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+    }
+    .math-block-amber {
+      background: #ffffff;
+      border: 1px solid #f3e8d0;
+      border-left: 4px solid #d97706;
+      border-radius: 0.5rem;
+      padding: 1.1rem 1.4rem;
+      margin: 1.5rem 0;
+      overflow-x: auto;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+    }
+    .math-block-rose {
+      background: #ffffff;
+      border: 1px solid #f5d5dc;
+      border-left: 4px solid #e11d48;
+      border-radius: 0.5rem;
+      padding: 1.1rem 1.4rem;
+      margin: 1.5rem 0;
+      overflow-x: auto;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+    }
+    .olah-callout {
+      background: #f3f6fa;
+      border: 1px solid #d8e2ef;
+      border-radius: 0.6rem;
+      padding: 1.25rem 1.5rem;
+      margin: 1.75rem 0;
+    }
+    .olah-callout-teal {
+      background: #f0fdf9;
+      border: 1px solid #c6ede5;
+      border-radius: 0.6rem;
+      padding: 1.25rem 1.5rem;
+      margin: 1.75rem 0;
+    }
+    .olah-callout-amber {
+      background: #fffbeb;
+      border: 1px solid #f3e2b3;
+      border-radius: 0.6rem;
+      padding: 1.25rem 1.5rem;
+      margin: 1.75rem 0;
+    }
+    .olah-callout-rose {
+      background: #fff5f7;
+      border: 1px solid #f5d0d8;
+      border-radius: 0.6rem;
+      padding: 1.25rem 1.5rem;
+      margin: 1.75rem 0;
+    }
+    .katex-display {
+      margin: 0.35rem 0 !important;
+    }
+    .katex {
+      font-size: 1.06em !important;
+    }
+    table.olah-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.92rem;
+      line-height: 1.5;
+    }
+    table.olah-table th {
+      background-color: #f4f2ec;
+      color: #2d3748;
+      font-weight: 600;
+      text-align: left;
+      padding: 0.75rem 1rem;
+      border-bottom: 2px solid #d6d3c9;
+    }
+    table.olah-table td {
+      padding: 0.7rem 1rem;
+      border-bottom: 1px solid #e8e5dc;
+    }
+    table.olah-table tr:last-child td {
+      border-bottom: none;
+    }
+    .timestamp-badge {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.76rem;
+      font-weight: 500;
+      background-color: #edf2f7;
+      color: #2b6cb0;
+      padding: 0.12rem 0.45rem;
+      border-radius: 0.25rem;
+      text-decoration: none;
+      transition: all 0.15s ease;
+      display: inline-block;
+      vertical-align: baseline;
+    }
+    .timestamp-badge:hover {
+      background-color: #2b6cb0;
+      color: #ffffff;
+    }
+    input[type="range"] {
+      accent-color: #2b6cb0;
+    }
+    /* Practice problems */
+    .practice-card {
+      background: #ffffff;
+      border: 1px solid #e5e2dc;
+      border-radius: 0.75rem;
+      padding: 1.5rem;
+      margin: 1.25rem 0;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+    }
+    .practice-card .answer-reveal {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.4s ease, opacity 0.3s ease;
+      opacity: 0;
+    }
+    .practice-card .answer-reveal.show {
+      max-height: 600px;
+      opacity: 1;
+    }
+    .practice-card .hint-reveal {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.35s ease, opacity 0.3s ease;
+      opacity: 0;
+    }
+    .practice-card .hint-reveal.show {
+      max-height: 300px;
+      opacity: 1;
+    }
+    /* Bar chart animations */
+    .softmax-bar {
+      transition: width 0.35s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.3s ease;
+    }
+    /* Gradient arrow */
+    .grad-arrow {
+      transition: all 0.35s ease;
+    }
+    /* Derivation step highlighting */
+    .deriv-step {
+      background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+      border: 1px solid #e2e8f0;
+      border-radius: 0.5rem;
+      padding: 1rem 1.25rem;
+      margin: 0.75rem 0;
+    }
+    .deriv-step-highlight {
+      background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+      border: 1px solid #bfdbfe;
+      border-radius: 0.5rem;
+      padding: 1rem 1.25rem;
+      margin: 0.75rem 0;
+    }
+  </style>
+</head>
+<body class="min-h-screen selection:bg-blue-100 selection:text-blue-900">
+
+  <!-- Top Editorial Header & Sticky Navigation -->
+  <header class="border-b border-[#e5e2dc] bg-[#faf9f5]/95 backdrop-blur sticky top-0 z-30">
+    <div class="max-w-4xl mx-auto px-4 sm:px-8 py-3 flex flex-wrap items-center justify-between gap-2 font-sans-ui">
+      <div class="flex items-center gap-2.5">
+        <span class="w-2.5 h-2.5 rounded-full bg-blue-700 inline-block"></span>
+        <span class="text-xs font-semibold tracking-wider uppercase text-slate-600">Deep Learning Foundations</span>
+        <span class="text-slate-300">|</span>
+        <span class="text-xs text-blue-700 font-medium">Part II: Softmax & Loss</span>
+      </div>
+      <nav class="flex flex-wrap items-center gap-1 sm:gap-1.5 text-xs">
+        <button type="button" data-scroll="sec-1" class="nav-jump px-2 py-1 rounded hover:bg-slate-200/70 text-slate-700 font-medium transition">1. Logits</button>
+        <button type="button" data-scroll="sec-2" class="nav-jump px-2 py-1 rounded hover:bg-slate-200/70 text-slate-700 font-medium transition">2. Softmax</button>
+        <button type="button" data-scroll="sec-3" class="nav-jump px-2 py-1 rounded hover:bg-slate-200/70 text-slate-700 font-medium transition">3. Stability</button>
+        <button type="button" data-scroll="sec-4" class="nav-jump px-2 py-1 rounded hover:bg-slate-200/70 text-slate-700 font-medium transition">4. Temperature</button>
+        <button type="button" data-scroll="sec-5" class="nav-jump px-2 py-1 rounded hover:bg-slate-200/70 text-slate-700 font-medium transition">5. CE Loss</button>
+        <button type="button" data-scroll="sec-6" class="nav-jump px-2 py-1 rounded hover:bg-slate-200/70 text-slate-700 font-medium transition">6. ∂L/∂z</button>
+        <button type="button" data-scroll="sec-7" class="nav-jump px-2 py-1 rounded hover:bg-slate-200/70 text-slate-700 font-medium transition">7. Backprop</button>
+        <button type="button" data-scroll="sec-8" class="nav-jump px-2 py-1 rounded hover:bg-slate-200/70 text-slate-700 font-medium transition">8. Practice</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="max-w-3xl mx-auto px-5 sm:px-8 pt-10 pb-24">
+
+    <!-- Article Title Banner -->
+    <div class="border-b border-[#e5e2dc] pb-8 mb-10">
+      <div class="font-sans-ui text-xs font-semibold uppercase tracking-widest text-blue-800 mb-3">
+        Deep Learning Foundations &middot; Classification Loss
+      </div>
+      <h1 class="font-sans-ui text-3xl sm:text-4xl font-bold tracking-tight text-slate-900 leading-tight mb-4">
+        From Logits to Gradients: The Complete Story of Softmax, Cross-Entropy Loss, and Backpropagation
+      </h1>
+      <p class="text-lg text-slate-600 italic mb-5">
+        How does a neural network classifier turn its raw output numbers into probabilities, measure how wrong those probabilities are, and then compute the exact gradient that tells each logit how to change? A step-by-step visual walkthrough from logits through softmax, temperature scaling, cross-entropy loss, and the surprisingly elegant $q_i - y_i$ gradient identity.
+      </p>
+      <div class="font-sans-ui text-xs text-slate-500 flex flex-wrap items-center gap-x-4 gap-y-2 pt-2">
+        <div>
+          <strong class="text-slate-700">Prerequisite:</strong>
+          <a href="./information_entropy_cross_entropy_notes.html" class="text-blue-700 hover:underline">Part I — Information, Entropy & Cross-Entropy</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Opening Hook -->
+    <section class="mb-12">
+      <p class="mb-4">
+        In our <a href="./information_entropy_cross_entropy_notes.html" class="text-blue-700 hover:underline">previous set of notes</a>, we built an understanding of information content, entropy, and cross-entropy from first principles—colored urns, surprise, and binary codes. We arrived at the formula $H(P, Q) = -\sum_i P_i \log Q_i$ and proved that it is minimized only when $Q = P$.
+      </p>
+      <p class="mb-4">
+        But in a real neural network, we don't directly output a probability distribution $Q$. Instead, the last layer computes a vector of <strong>raw, unconstrained numbers</strong>—called <strong>logits</strong>—and we need machinery to:
+      </p>
+      <ol class="list-decimal pl-6 space-y-1.5 mb-5">
+        <li>Turn logits into a valid probability distribution (the <strong>softmax</strong> function),</li>
+        <li>Measure how far that distribution is from the ground truth (the <strong>cross-entropy loss</strong>),</li>
+        <li>Control the "sharpness" of predictions (the <strong>temperature</strong> parameter), and</li>
+        <li>Compute the gradient of the loss with respect to each logit for <strong>backpropagation</strong>.</li>
+      </ol>
+      <p>
+        This second set of notes covers every one of those steps. By the end, the identity $\frac{\partial L}{\partial z_i} = q_i - y_i$ will feel less like a formula to memorize and more like the <em>only natural conclusion</em> of the mathematics.
+      </p>
+    </section>
+
+    <!-- ═══════════════════════════════════════════ -->
+    <!-- SECTION 1: LOGITS                          -->
+    <!-- ═══════════════════════════════════════════ -->
+    <section id="sec-1" class="mb-14 scroll-mt-16">
+      <div class="flex items-center gap-2 font-sans-ui text-xs font-bold uppercase tracking-wider text-blue-800 mb-1">
+        <span>Section 01</span>
+      </div>
+      <h2 class="font-sans-ui text-2xl font-bold text-slate-900 mb-4">
+        1. Logits: The Raw, Unconstrained Output of a Network
+      </h2>
+
+      <p class="mb-4">
+        Consider a neural network that classifies images into $k$ classes. The very last linear layer computes:
+      </p>
+
+      <div class="math-block">
+        $$z = W^{(L)} h^{(L-1)} + b^{(L)} \in \mathbb{R}^k$$
+      </div>
+
+      <p class="mb-4">
+        Here $h^{(L-1)}$ is the activations from the penultimate layer, and $W^{(L)}, b^{(L)}$ are the weights and biases of the final layer. Each component $z_i$ is a <strong>logit</strong>—a real number that can be positive, negative, or zero. There is no constraint forcing these numbers to sum to $1$ or be non-negative.
+      </p>
+
+      <div class="olah-callout font-sans-ui text-sm text-slate-700">
+        <strong class="text-slate-900 block mb-1">Why "Logit"?</strong>
+        The name comes from the <strong>logistic function</strong> (sigmoid), where $\sigma(z) = \frac{1}{1+e^{-z}}$ maps a single real number $z$ to a probability in $(0,1)$. The inverse $z = \log\frac{p}{1-p}$ is called the <em>log-odds</em> or <strong>logit</strong>. In the multi-class case, softmax generalizes sigmoid, and the inputs to softmax inherit the name "logits." Think of logits as <em>unnormalized log-probabilities</em>: larger logit $\Rightarrow$ higher probability after softmax.
+      </div>
+
+      <p class="mb-4">
+        For a concrete example, suppose we have a 3-class classifier (cat, dog, bird) and the final layer produces:
+      </p>
+
+      <div class="math-block">
+        $$z = [z_{\text{cat}},\, z_{\text{dog}},\, z_{\text{bird}}] = [2.0,\, 1.0,\, 0.1]$$
+      </div>
+
+      <p class="mb-4">
+        The cat logit is highest, suggesting the network "thinks" the image is most likely a cat. But $z_{\text{cat}} = 2.0$ is <em>not</em> a probability—it doesn't tell us <em>how confident</em> the network is in a meaningful way. We need to convert this vector into a proper distribution $q$ over the three classes.
+      </p>
+
+      <div class="olah-callout-teal font-sans-ui text-sm text-slate-700">
+        <strong class="text-teal-900 block mb-1">Key Distinction: Logits vs. Probabilities</strong>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
+          <div class="bg-white border border-slate-200 rounded p-3">
+            <div class="text-xs font-bold text-slate-500 uppercase mb-1">Logits $z$</div>
+            <ul class="text-xs space-y-1 text-slate-600">
+              <li>• Any real number $z_i \in (-\infty, +\infty)$</li>
+              <li>• No constraint on sum</li>
+              <li>• Can be negative</li>
+              <li>• Raw network output</li>
+            </ul>
+          </div>
+          <div class="bg-white border border-teal-100 rounded p-3">
+            <div class="text-xs font-bold text-teal-700 uppercase mb-1">Probabilities $q$</div>
+            <ul class="text-xs space-y-1 text-slate-600">
+              <li>• Each $q_i \in (0, 1)$</li>
+              <li>• Must sum to $1$: $\sum_i q_i = 1$</li>
+              <li>• Always non-negative</li>
+              <li>• Interpretable as confidence</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════ -->
+    <!-- SECTION 2: SOFTMAX                         -->
+    <!-- ═══════════════════════════════════════════ -->
+    <section id="sec-2" class="mb-14 scroll-mt-16">
+      <div class="flex items-center gap-2 font-sans-ui text-xs font-bold uppercase tracking-wider text-blue-800 mb-1">
+        <span>Section 02</span>
+      </div>
+      <h2 class="font-sans-ui text-2xl font-bold text-slate-900 mb-4">
+        2. The Softmax Function: Turning Logits Into a Valid Probability Distribution
+      </h2>
+
+      <p class="mb-4">
+        Given a vector of logits $z = [z_1, z_2, \dots, z_k]$, the <strong>softmax function</strong> maps it to a probability distribution $q = [q_1, q_2, \dots, q_k]$ via:
+      </p>
+
+      <div class="math-block">
+        $$q_i = \text{softmax}(z)_i = \frac{e^{z_i}}{\sum_{j=1}^{k} e^{z_j}} \quad \text{for } i = 1, 2, \dots, k$$
+      </div>
+
+      <p class="mb-4">
+        Let's verify that softmax always produces a valid probability distribution:
+      </p>
+
+      <ul class="list-disc pl-6 space-y-2 mb-5">
+        <li><strong>Non-negativity ($q_i > 0$):</strong> Since $e^x > 0$ for any real $x$, every numerator $e^{z_i}$ is strictly positive, and the denominator $\sum_j e^{z_j}$ is also positive. So $q_i > 0$ always.</li>
+        <li><strong>Summation to 1 ($\sum_i q_i = 1$):</strong> $\displaystyle \sum_{i=1}^{k} q_i = \sum_{i=1}^{k} \frac{e^{z_i}}{\sum_{j} e^{z_j}} = \frac{\sum_{i} e^{z_i}}{\sum_{j} e^{z_j}} = 1.$</li>
+        <li><strong>Monotonicity:</strong> A larger logit $z_i$ produces a larger probability $q_i$ (because $e^x$ is strictly increasing).</li>
+      </ul>
+
+      <h3 class="font-sans-ui text-lg font-bold text-slate-800 mt-7 mb-3">
+        Why Exponentials? The "Soft" Version of Argmax
+      </h3>
+
+      <p class="mb-4">
+        The name "softmax" is revealing. Consider the <strong>hardmax</strong> (argmax) operation: it assigns probability 1 to the largest logit and 0 to everything else. Softmax is a smooth, differentiable approximation of this. As logits become very large in magnitude, softmax <em>approaches</em> hardmax:
+      </p>
+
+      <div class="bg-white border border-[#e5e2dc] rounded-lg overflow-hidden my-6 shadow-sm">
+        <table class="olah-table">
+          <thead>
+            <tr>
+              <th>Logits $z$</th>
+              <th>$e^{z_i}$</th>
+              <th>Softmax $q$</th>
+              <th>Behavior</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="font-mono-code text-sm">$[1, 1, 1]$</td>
+              <td class="font-mono-code text-sm">$[e, e, e]$</td>
+              <td class="font-mono-code text-sm">$[0.333, 0.333, 0.333]$</td>
+              <td class="text-sm">Equal logits → uniform distribution</td>
+            </tr>
+            <tr>
+              <td class="font-mono-code text-sm">$[2, 1, 0]$</td>
+              <td class="font-mono-code text-sm">$[7.39, 2.72, 1.00]$</td>
+              <td class="font-mono-code text-sm">$[0.665, 0.245, 0.090]$</td>
+              <td class="text-sm">Spread logits → peaked distribution</td>
+            </tr>
+            <tr>
+              <td class="font-mono-code text-sm">$[10, 1, 0]$</td>
+              <td class="font-mono-code text-sm">$[22026, 2.72, 1.00]$</td>
+              <td class="font-mono-code text-sm">$[0.9999, 0.0001, 0.000]$</td>
+              <td class="text-sm">One dominant logit → near-hardmax</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3 class="font-sans-ui text-lg font-bold text-slate-800 mt-7 mb-3">
+        Worked Example: $z = [2, 1, 0.1]$
+      </h3>
+
+      <p class="mb-4">
+        Let's compute softmax step by step for our cat/dog/bird classifier:
+      </p>
+
+      <div class="deriv-step">
+        <div class="font-sans-ui text-xs font-bold text-slate-500 uppercase mb-1">Step 1: Exponentiate each logit</div>
+        $$e^{z_1} = e^{2.0} \approx 7.389, \quad e^{z_2} = e^{1.0} \approx 2.718, \quad e^{z_3} = e^{0.1} \approx 1.105$$
+      </div>
+
+      <div class="deriv-step">
+        <div class="font-sans-ui text-xs font-bold text-slate-500 uppercase mb-1">Step 2: Sum the exponentials</div>
+        $$S = \sum_{j=1}^{3} e^{z_j} = 7.389 + 2.718 + 1.105 \approx 11.212$$
+      </div>
+
+      <div class="deriv-step-highlight">
+        <div class="font-sans-ui text-xs font-bold text-blue-600 uppercase mb-1">Step 3: Divide each by the sum</div>
+        $$q = \left[\frac{7.389}{11.212},\, \frac{2.718}{11.212},\, \frac{1.105}{11.212}\right] \approx [0.659,\, 0.242,\, 0.099]$$
+      </div>
+
+      <p class="mb-2">
+        Verify: $0.659 + 0.242 + 0.099 = 1.000$ ✓. The network is about $66\%$ confident the image is a cat.
+      </p>
+    </section>
+
+    <!-- ═══════════════════════════════════════════ -->
+    <!-- SECTION 3: NUMERICAL STABILITY             -->
+    <!-- ═══════════════════════════════════════════ -->
+    <section id="sec-3" class="mb-14 scroll-mt-16">
+      <div class="flex items-center gap-2 font-sans-ui text-xs font-bold uppercase tracking-wider text-blue-800 mb-1">
+        <span>Section 03</span>
+      </div>
+      <h2 class="font-sans-ui text-2xl font-bold text-slate-900 mb-4">
+        3. The Log-Sum-Exp Trick: Numerical Stability and Shift Invariance
+      </h2>
+
+      <p class="mb-4">
+        There is a serious <strong>numerical problem</strong> lurking in the naive softmax formula. Consider logits $z = [1000, 1001, 999]$. Computing $e^{1000}$ in floating-point arithmetic <strong>overflows to infinity</strong> on most hardware, even though the final probabilities should be perfectly well-defined.
+      </p>
+
+      <h3 class="font-sans-ui text-lg font-bold text-slate-800 mt-6 mb-3">
+        Softmax Is Shift-Invariant
+      </h3>
+
+      <p class="mb-4">
+        The key insight is that adding any constant $c$ to every logit does not change the softmax output. Let's prove it:
+      </p>
+
+      <div class="math-block-teal">
+        $$\frac{e^{z_i + c}}{\sum_{j} e^{z_j + c}} = \frac{e^c \cdot e^{z_i}}{e^c \cdot \sum_{j} e^{z_j}} = \frac{e^{z_i}}{\sum_{j} e^{z_j}} = q_i$$
+      </div>
+
+      <p class="mb-4">
+        The $e^c$ factors cancel in the numerator and denominator. This means $\text{softmax}(z + c) = \text{softmax}(z)$ for any scalar $c$. In particular, choosing $c = -\max(z)$ ensures that the largest exponent is $e^0 = 1$, preventing overflow:
+      </p>
+
+      <div class="math-block">
+        $$q_i = \frac{e^{z_i - \max(z)}}{\sum_{j} e^{z_j - \max(z)}} \quad \text{(numerically stable softmax)}$$
+      </div>
+
+      <h3 class="font-sans-ui text-lg font-bold text-slate-800 mt-7 mb-3">
+        Worked Example: Stable Computation for $z = [2, 0, 0]$
+      </h3>
+
+      <p class="mb-4">
+        This is the example from the practice problems. True class is $y = 0$ (0-indexed).
+      </p>
+
+      <div class="deriv-step">
+        <div class="font-sans-ui text-xs font-bold text-slate-500 uppercase mb-1">Step 1: Shift for stability</div>
+        $$\max(z) = 2, \quad z' = z - \max(z) = [0, -2, -2]$$
+      </div>
+
+      <div class="deriv-step">
+        <div class="font-sans-ui text-xs font-bold text-slate-500 uppercase mb-1">Step 2: Exponentiate the shifted logits</div>
+        $$e^{z'} = [e^0, e^{-2}, e^{-2}] = [1, 0.13534, 0.13534]$$
+      </div>
+
+      <div class="deriv-step">
+        <div class="font-sans-ui text-xs font-bold text-slate-500 uppercase mb-1">Step 3: Sum</div>
+        $$S = 1 + 0.13534 + 0.13534 = 1.27067$$
+      </div>
+
+      <div class="deriv-step-highlight">
+        <div class="font-sans-ui text-xs font-bold text-blue-600 uppercase mb-1">Step 4: Normalize</div>
+        $$q = \left[\frac{1}{1.27067},\, \frac{0.13534}{1.27067},\, \frac{0.13534}{1.27067}\right] \approx [0.7870, 0.1065, 0.1065]$$
+      </div>
+
+      <div class="olah-callout font-sans-ui text-sm text-slate-700">
+        <strong class="text-slate-900 block mb-1">Why This Matters in Practice</strong>
+        Every deep learning framework (PyTorch, TensorFlow, JAX) implements this shift internally. When you call <code class="font-mono-code text-sm bg-slate-100 px-1.5 py-0.5 rounded">torch.nn.functional.softmax(logits)</code>, it silently subtracts <code class="font-mono-code text-sm bg-slate-100 px-1.5 py-0.5 rounded">max(logits)</code> first. You almost never need to worry about it, but knowing <em>why</em> helps you debug NaN losses when they appear.
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════ -->
+    <!-- SECTION 4: TEMPERATURE SCALING             -->
+    <!-- ═══════════════════════════════════════════ -->
+    <section id="sec-4" class="mb-14 scroll-mt-16">
+      <div class="flex items-center gap-2 font-sans-ui text-xs font-bold uppercase tracking-wider text-blue-800 mb-1">
+        <span>Section 04</span>
+      </div>
+      <h2 class="font-sans-ui text-2xl font-bold text-slate-900 mb-4">
+        4. Temperature Scaling: Controlling the Sharpness of the Distribution
+      </h2>
+
+      <p class="mb-4">
+        We can introduce a <strong>temperature</strong> parameter $T > 0$ that controls how peaked or flat the softmax output is:
+      </p>
+
+      <div class="math-block-amber">
+        $$q_i = \frac{e^{z_i / T}}{\sum_{j} e^{z_j / T}}$$
+      </div>
+
+      <p class="mb-4">
+        The name "temperature" is borrowed from statistical physics (the Boltzmann distribution). The analogy is exact:
+      </p>
+
+      <ul class="list-disc pl-6 space-y-2 mb-5">
+        <li><strong>$T \to 0^+$ (freezing):</strong> Dividing by a tiny $T$ magnifies the differences between logits. The largest logit dominates exponentially. The distribution approaches a one-hot vector (hardmax). The system "freezes" into a single state.</li>
+        <li><strong>$T = 1$ (standard):</strong> Normal softmax—this is the default during training.</li>
+        <li><strong>$T \to \infty$ (melting):</strong> Dividing by a huge $T$ shrinks all logits toward zero. All $e^{z_i/T} \to 1$, so the distribution approaches $[1/k, 1/k, \dots, 1/k]$ (uniform). Maximum entropy—maximum randomness.</li>
+      </ul>
+
+      <div class="bg-white border border-[#e5e2dc] rounded-lg overflow-hidden my-6 shadow-sm">
+        <table class="olah-table">
+          <thead>
+            <tr>
+              <th>Temperature $T$</th>
+              <th>Effective Logits $z/T$</th>
+              <th>Softmax Output $q$</th>
+              <th>Effect</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="font-mono-code text-sm text-blue-700 font-semibold">$0.5$</td>
+              <td class="font-mono-code text-sm">$[4.0, 2.0, 0.2]$</td>
+              <td class="font-mono-code text-sm">$[0.870, 0.118, 0.012]$</td>
+              <td class="text-sm text-blue-800">Sharper — more confident</td>
+            </tr>
+            <tr class="bg-blue-50/30">
+              <td class="font-mono-code text-sm text-slate-800 font-semibold">$1.0$</td>
+              <td class="font-mono-code text-sm">$[2.0, 1.0, 0.1]$</td>
+              <td class="font-mono-code text-sm">$[0.659, 0.242, 0.099]$</td>
+              <td class="text-sm">Standard softmax</td>
+            </tr>
+            <tr>
+              <td class="font-mono-code text-sm text-amber-700 font-semibold">$2.0$</td>
+              <td class="font-mono-code text-sm">$[1.0, 0.5, 0.05]$</td>
+              <td class="font-mono-code text-sm">$[0.443, 0.269, 0.288]$</td>
+              <td class="text-sm text-amber-800">Flatter — less confident</td>
+            </tr>
+            <tr>
+              <td class="font-mono-code text-sm text-rose-700 font-semibold">$10.0$</td>
+              <td class="font-mono-code text-sm">$[0.2, 0.1, 0.01]$</td>
+              <td class="font-mono-code text-sm">$[0.348, 0.333, 0.319]$</td>
+              <td class="text-sm text-rose-800">Nearly uniform</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Interactive Temperature Playground -->
+      <div class="bg-white border border-[#d8e2ef] rounded-xl p-5 sm:p-6 my-8 shadow-sm font-sans-ui">
+        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3 mb-4">
+          <div>
+            <span class="text-[11px] font-bold uppercase tracking-wider text-amber-800 bg-amber-50 px-2 py-0.5 rounded">Interactive Playground</span>
+            <h3 class="text-base font-bold text-slate-800 mt-1">Softmax & Temperature Explorer</h3>
+          </div>
+          <div class="flex gap-2">
+            <button type="button" id="btn-preset-peaked" class="text-xs px-2.5 py-1.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium transition">Peaked $z=[5,1,0]$</button>
+            <button type="button" id="btn-preset-flat" class="text-xs px-2.5 py-1.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium transition">Flat $z=[0,0,0]$</button>
+            <button type="button" id="btn-preset-default" class="text-xs px-2.5 py-1.5 rounded bg-blue-600 hover:bg-blue-700 text-white font-medium transition">Default $z=[2,1,0.1]$</button>
+          </div>
+        </div>
+
+        <p class="text-xs text-slate-600 mb-4">
+          Adjust the logits and temperature below. Watch how softmax probabilities, cross-entropy loss, and the gradient $\nabla_z L$ change in real time. The target class is <strong>Class 0 (Cat)</strong>.
+        </p>
+
+        <!-- Logit Sliders -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+          <div class="bg-rose-50/50 border border-rose-100 rounded-lg p-3">
+            <div class="flex justify-between text-xs font-semibold text-rose-800 mb-1">
+              <span>$z_0$ (Cat) — <strong>target</strong></span>
+              <span id="lbl-z0" class="font-mono-code">2.00</span>
+            </div>
+            <input type="range" id="slider-z0" min="-5" max="10" step="0.1" value="2.0" class="w-full">
+          </div>
+          <div class="bg-blue-50/50 border border-blue-100 rounded-lg p-3">
+            <div class="flex justify-between text-xs font-semibold text-blue-800 mb-1">
+              <span>$z_1$ (Dog)</span>
+              <span id="lbl-z1" class="font-mono-code">1.00</span>
+            </div>
+            <input type="range" id="slider-z1" min="-5" max="10" step="0.1" value="1.0" class="w-full">
+          </div>
+          <div class="bg-slate-100/70 border border-slate-200 rounded-lg p-3">
+            <div class="flex justify-between text-xs font-semibold text-slate-700 mb-1">
+              <span>$z_2$ (Bird)</span>
+              <span id="lbl-z2" class="font-mono-code">0.10</span>
+            </div>
+            <input type="range" id="slider-z2" min="-5" max="10" step="0.1" value="0.1" class="w-full">
+          </div>
+        </div>
+
+        <!-- Temperature Slider -->
+        <div class="bg-amber-50/60 border border-amber-200 rounded-lg p-3 mb-5">
+          <div class="flex justify-between text-xs font-semibold text-amber-900 mb-1">
+            <span>Temperature $T$</span>
+            <span id="lbl-temp" class="font-mono-code">1.0</span>
+          </div>
+          <input type="range" id="slider-temp" min="0.1" max="10" step="0.1" value="1.0" class="w-full">
+        </div>
+
+        <!-- Softmax probability bars -->
+        <div class="space-y-2 mb-5">
+          <div class="text-xs font-medium text-slate-600 mb-1">Softmax probabilities $q = \text{softmax}(z/T)$</div>
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-semibold text-rose-700 w-12">Cat</span>
+            <div class="flex-1 bg-slate-100 rounded-full h-6 overflow-hidden relative">
+              <div id="bar-cat" class="softmax-bar h-full bg-rose-500 rounded-full flex items-center justify-end pr-2" style="width: 66%">
+                <span id="lbl-pcat" class="text-white text-[10px] font-mono-code font-bold">0.659</span>
+              </div>
+            </div>
+            <span class="text-xs font-semibold text-rose-800 bg-rose-50 px-1.5 py-0.5 rounded w-10 text-center">target</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-semibold text-blue-700 w-12">Dog</span>
+            <div class="flex-1 bg-slate-100 rounded-full h-6 overflow-hidden relative">
+              <div id="bar-dog" class="softmax-bar h-full bg-blue-500 rounded-full flex items-center justify-end pr-2" style="width: 24%">
+                <span id="lbl-pdog" class="text-white text-[10px] font-mono-code font-bold">0.242</span>
+              </div>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-semibold text-slate-600 w-12">Bird</span>
+            <div class="flex-1 bg-slate-100 rounded-full h-6 overflow-hidden relative">
+              <div id="bar-bird" class="softmax-bar h-full bg-slate-400 rounded-full flex items-center justify-end pr-2" style="width: 10%">
+                <span id="lbl-pbird" class="text-white text-[10px] font-mono-code font-bold">0.099</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Stats Row -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3 border-t border-slate-100 text-center">
+          <div class="bg-slate-50 rounded p-2.5">
+            <div class="text-[11px] text-slate-500 font-medium">$\sum q_i$</div>
+            <div id="val-sum" class="text-sm font-bold font-mono-code text-slate-800 mt-0.5">1.000</div>
+          </div>
+          <div class="bg-blue-50/70 rounded p-2.5">
+            <div class="text-[11px] text-blue-800 font-medium">CE Loss $-\ln q_0$</div>
+            <div id="val-ce-loss" class="text-sm font-bold font-mono-code text-blue-900 mt-0.5">0.417</div>
+          </div>
+          <div class="bg-teal-50/70 rounded p-2.5">
+            <div class="text-[11px] text-teal-800 font-medium">$\partial L/\partial z_0$</div>
+            <div id="val-grad0" class="text-sm font-bold font-mono-code text-teal-900 mt-0.5">−0.341</div>
+          </div>
+          <div class="bg-amber-50/70 rounded p-2.5">
+            <div class="text-[11px] text-amber-900 font-medium">$\sum \partial L/\partial z_i$</div>
+            <div id="val-gradsum" class="text-sm font-bold font-mono-code text-amber-900 mt-0.5">0.000</div>
+          </div>
+        </div>
+
+        <!-- Gradient Vector -->
+        <div class="mt-3 pt-3 border-t border-slate-100">
+          <div class="text-[11px] text-slate-500 font-medium mb-1">Gradient vector $\nabla_z L = q - y$</div>
+          <div id="val-gradvec" class="font-mono-code text-sm text-slate-700 bg-slate-50 rounded px-3 py-2">[−0.341, 0.242, 0.099]</div>
+        </div>
+      </div>
+
+      <div class="olah-callout-amber font-sans-ui text-sm text-slate-700">
+        <strong class="text-amber-900 block mb-1">When Is Temperature Used?</strong>
+        <ul class="space-y-1 mt-1 text-slate-600">
+          <li>• <strong>Training:</strong> Almost always $T = 1$ (standard softmax).</li>
+          <li>• <strong>Knowledge Distillation:</strong> Hinton et al. (2015) use $T > 1$ to soften teacher probabilities, revealing "dark knowledge" about inter-class similarities.</li>
+          <li>• <strong>LLM Sampling:</strong> In GPT-style generation, $T < 1$ makes output more deterministic (greedy), $T > 1$ makes it more creative (random).</li>
+          <li>• <strong>Calibration:</strong> Post-hoc temperature scaling tunes $T$ on a validation set to fix overconfident predictions.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════ -->
+    <!-- SECTION 5: CROSS-ENTROPY LOSS              -->
+    <!-- ═══════════════════════════════════════════ -->
+    <section id="sec-5" class="mb-14 scroll-mt-16">
+      <div class="flex items-center gap-2 font-sans-ui text-xs font-bold uppercase tracking-wider text-blue-800 mb-1">
+        <span>Section 05</span>
+      </div>
+      <h2 class="font-sans-ui text-2xl font-bold text-slate-900 mb-4">
+        5. Cross-Entropy as the Loss Function: Connecting Information Theory to Neural Network Training
+      </h2>
+
+      <p class="mb-4">
+        From our <a href="./information_entropy_cross_entropy_notes.html" class="text-blue-700 hover:underline">Part I notes</a>, we know the cross-entropy between two distributions $y$ (true) and $q$ (predicted) is:
+      </p>
+
+      <div class="math-block">
+        $$H(y, q) = -\sum_{i=1}^{k} y_i \log q_i$$
+      </div>
+
+      <p class="mb-4">
+        In classification, $y$ is a <strong>one-hot vector</strong>: if the true class is $c$, then $y_c = 1$ and $y_{j \neq c} = 0$. This collapses the sum to a single term:
+      </p>
+
+      <div class="math-block-rose">
+        $$L = H(y, q) = -\sum_{i=1}^{k} y_i \log q_i = -1 \cdot \log q_c - \sum_{j \neq c} 0 \cdot \log q_j = -\log q_c$$
+      </div>
+
+      <p class="mb-4">
+        The loss is simply the <strong>negative log-probability</strong> assigned to the true class. This has a beautifully intuitive interpretation:
+      </p>
+
+      <ul class="list-disc pl-6 space-y-2 mb-5">
+        <li><strong>If $q_c \to 1$ (perfect prediction):</strong> $L = -\log(1) = 0$. No loss — the model is fully confident and correct.</li>
+        <li><strong>If $q_c \to 0$ (completely wrong):</strong> $L = -\log(0) \to +\infty$. Infinite penalty — the model assigned near-zero probability to the correct answer.</li>
+        <li><strong>If $q_c = 0.5$ (uncertain):</strong> $L = -\log(0.5) \approx 0.693$ nats (or $1$ bit).</li>
+      </ul>
+
+      <h3 class="font-sans-ui text-lg font-bold text-slate-800 mt-7 mb-3">
+        The KL Divergence Decomposition
+      </h3>
+
+      <p class="mb-4">
+        Recall the fundamental identity:
+      </p>
+
+      <div class="math-block-teal">
+        $$H(y, q) = H(y) + D_{\text{KL}}(y \,\|\, q)$$
+      </div>
+
+      <p class="mb-4">
+        where $H(y) = -\sum_i y_i \log y_i$ is the entropy of the label distribution and $D_{\text{KL}}(y \| q) = \sum_i y_i \log \frac{y_i}{q_i}$ is the KL divergence from $q$ to $y$. For a one-hot label:
+      </p>
+
+      <ul class="list-disc pl-6 space-y-2 mb-5">
+        <li>$H(y) = -1 \cdot \log 1 = 0$ (a certain event has zero entropy).</li>
+        <li>Therefore: $H(y, q) = 0 + D_{\text{KL}}(y \| q) = D_{\text{KL}}(y \| q)$.</li>
+      </ul>
+
+      <div class="olah-callout font-sans-ui text-sm text-slate-700">
+        <strong class="text-slate-900 block mb-1">Key Insight: Minimizing CE = Minimizing KL Divergence</strong>
+        With one-hot labels, the entropy $H(y)$ is a constant (zero) that doesn't depend on the model. So minimizing the cross-entropy loss is <em>exactly</em> the same as minimizing the KL divergence $D_{\text{KL}}(y \| q)$—pushing the predicted distribution $q$ toward the true distribution $y$.
+      </div>
+
+      <h3 class="font-sans-ui text-lg font-bold text-slate-800 mt-7 mb-3">
+        Why Not Mean Squared Error?
+      </h3>
+
+      <p class="mb-4">
+        You might wonder: why not use $L_{\text{MSE}} = \sum_i (y_i - q_i)^2$ instead? There are several reasons:
+      </p>
+
+      <div class="bg-white border border-[#e5e2dc] rounded-lg overflow-hidden my-6 shadow-sm">
+        <table class="olah-table">
+          <thead>
+            <tr>
+              <th>Property</th>
+              <th>Cross-Entropy $-\log q_c$</th>
+              <th>MSE $\sum(y_i - q_i)^2$</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="font-medium">Gradient w.r.t. logits</td>
+              <td class="text-teal-700 font-medium">$q_i - y_i$ (simple!)</td>
+              <td class="text-rose-700 font-medium">Complex: involves $\frac{\partial q_i}{\partial z_j}$</td>
+            </tr>
+            <tr>
+              <td class="font-medium">Saturated logits ($q_c \approx 0$)</td>
+              <td class="text-teal-700 font-medium">Large gradient → strong signal</td>
+              <td class="text-rose-700 font-medium">Vanishing gradient → slow learning</td>
+            </tr>
+            <tr>
+              <td class="font-medium">Information-theoretic motivation</td>
+              <td class="text-teal-700 font-medium">Minimizes KL divergence $D_{\text{KL}}(y\|q)$</td>
+              <td class="text-rose-700 font-medium">No clear probabilistic interpretation</td>
+            </tr>
+            <tr>
+              <td class="font-medium">Convexity w.r.t. logits</td>
+              <td class="text-teal-700 font-medium">Convex (unique minimum)</td>
+              <td class="text-rose-700 font-medium">Not convex w.r.t. logits</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>
+        The first row is the most important: the gradient $q_i - y_i$ is the reason softmax + cross-entropy is the dominant combination in classification.
+      </p>
+    </section>
+
+    <!-- ═══════════════════════════════════════════ -->
+    <!-- SECTION 6: GRADIENT DERIVATION             -->
+    <!-- ═══════════════════════════════════════════ -->
+    <section id="sec-6" class="mb-14 scroll-mt-16">
+      <div class="flex items-center gap-2 font-sans-ui text-xs font-bold uppercase tracking-wider text-blue-800 mb-1">
+        <span>Section 06</span>
+      </div>
+      <h2 class="font-sans-ui text-2xl font-bold text-slate-900 mb-4">
+        6. Deriving $\frac{\partial L}{\partial z_i} = q_i - y_i$: The Elegant Gradient Identity
+      </h2>
+
+      <p class="mb-4">
+        This is arguably the most important derivation in classification networks. We will compute $\frac{\partial L}{\partial z_i}$ where $L = -\log q_c$ and $q_i = \text{softmax}(z)_i$. We proceed via the chain rule:
+      </p>
+
+      <div class="math-block">
+        $$\frac{\partial L}{\partial z_i} = \sum_{j=1}^{k} \frac{\partial L}{\partial q_j} \cdot \frac{\partial q_j}{\partial z_i}$$
+      </div>
+
+      <h3 class="font-sans-ui text-lg font-bold text-slate-800 mt-7 mb-3">
+        Step 1: $\frac{\partial L}{\partial q_j}$
+      </h3>
+
+      <p class="mb-4">
+        Since $L = -\log q_c$, the loss depends on $q$ only through $q_c$:
+      </p>
+
+      <div class="deriv-step">
+        $$\frac{\partial L}{\partial q_j} = \begin{cases} -\dfrac{1}{q_c} & \text{if } j = c \\[8pt] 0 & \text{if } j \neq c \end{cases}$$
+      </div>
+
+      <p class="mb-4">
+        This simplifies our chain rule: only the $j = c$ term survives in the sum:
+      </p>
+
+      <div class="math-block-teal">
+        $$\frac{\partial L}{\partial z_i} = \frac{\partial L}{\partial q_c} \cdot \frac{\partial q_c}{\partial z_i} = -\frac{1}{q_c} \cdot \frac{\partial q_c}{\partial z_i}$$
+      </div>
+
+      <h3 class="font-sans-ui text-lg font-bold text-slate-800 mt-7 mb-3">
+        Step 2: $\frac{\partial q_c}{\partial z_i}$ — The Softmax Jacobian
+      </h3>
+
+      <p class="mb-4">
+        Recall $q_c = \frac{e^{z_c}}{S}$ where $S = \sum_j e^{z_j}$. We need two cases:
+      </p>
+
+      <div class="deriv-step">
+        <div class="font-sans-ui text-xs font-bold text-slate-500 uppercase mb-1">Case 1: $i = c$ (same class)</div>
+        <p class="text-sm text-slate-600 mb-2">By the quotient rule:</p>
+        $$\frac{\partial q_c}{\partial z_c} = \frac{e^{z_c} \cdot S - e^{z_c} \cdot e^{z_c}}{S^2} = \frac{e^{z_c}}{S} \cdot \frac{S - e^{z_c}}{S} = q_c(1 - q_c)$$
+      </div>
+
+      <div class="deriv-step">
+        <div class="font-sans-ui text-xs font-bold text-slate-500 uppercase mb-1">Case 2: $i \neq c$ (different class)</div>
+        <p class="text-sm text-slate-600 mb-2">The numerator $e^{z_c}$ does not depend on $z_i$, only $S$ does:</p>
+        $$\frac{\partial q_c}{\partial z_i} = \frac{0 \cdot S - e^{z_c} \cdot e^{z_i}}{S^2} = -\frac{e^{z_c}}{S} \cdot \frac{e^{z_i}}{S} = -q_c \cdot q_i$$
+      </div>
+
+      <p class="mb-4">
+        Compactly: $\frac{\partial q_c}{\partial z_i} = q_c(\delta_{ci} - q_i)$ where $\delta_{ci}$ is the Kronecker delta.
+      </p>
+
+      <h3 class="font-sans-ui text-lg font-bold text-slate-800 mt-7 mb-3">
+        Step 3: Combine to get $\frac{\partial L}{\partial z_i}$
+      </h3>
+
+      <div class="deriv-step">
+        <div class="font-sans-ui text-xs font-bold text-slate-500 uppercase mb-1">Case 1: $i = c$ (the true class)</div>
+        $$\frac{\partial L}{\partial z_c} = -\frac{1}{q_c} \cdot q_c(1 - q_c) = -(1 - q_c) = q_c - 1$$
+        <p class="text-sm text-slate-600 mt-1">Since $y_c = 1$: $\frac{\partial L}{\partial z_c} = q_c - y_c$ ✓</p>
+      </div>
+
+      <div class="deriv-step">
+        <div class="font-sans-ui text-xs font-bold text-slate-500 uppercase mb-1">Case 2: $i \neq c$ (any wrong class)</div>
+        $$\frac{\partial L}{\partial z_i} = -\frac{1}{q_c} \cdot (-q_c \cdot q_i) = q_i$$
+        <p class="text-sm text-slate-600 mt-1">Since $y_i = 0$: $\frac{\partial L}{\partial z_i} = q_i - y_i = q_i - 0 = q_i$ ✓</p>
+      </div>
+
+      <p class="mb-4">
+        Both cases unify into a single, stunningly elegant expression:
+      </p>
+
+      <div class="math-block-rose">
+        $$\boxed{\frac{\partial L}{\partial z_i} = q_i - y_i \quad \text{for all } i}$$
+      </div>
+
+      <div class="olah-callout font-sans-ui text-sm text-slate-700">
+        <strong class="text-slate-900 block mb-1">Why Is This Gradient So Beautiful?</strong>
+        <ul class="space-y-1.5 mt-2 text-slate-600">
+          <li>• <strong>Simplicity:</strong> No division by $q_c$, no Jacobian matrices — just "predicted minus true."</li>
+          <li>• <strong>Sum-to-zero:</strong> $\sum_i (q_i - y_i) = \sum_i q_i - \sum_i y_i = 1 - 1 = 0$. This is a consequence of softmax shift-invariance: adding the same constant to all logits doesn't change the loss, so the gradient must be orthogonal to the all-ones vector.</li>
+          <li>• <strong>Self-correcting magnitudes:</strong> For the true class, $\partial L / \partial z_c = q_c - 1$ is negative (push the logit up). For wrong classes, $\partial L / \partial z_i = q_i$ is positive (push them down). The magnitude is proportional to the error.</li>
+          <li>• <strong>No vanishing gradients:</strong> Even when the model is badly wrong ($q_c \approx 0$), the gradient is approximately $-1$ — a strong learning signal. With MSE, the gradient would vanish due to the flat region of the softmax saturation.</li>
+        </ul>
+      </div>
+
+      <h3 class="font-sans-ui text-lg font-bold text-slate-800 mt-7 mb-3">
+        Worked Example: $z = [2, 0, 0]$, True Class $y = 0$
+      </h3>
+
+      <p class="mb-2">
+        From Section 3, we computed $q \approx [0.7870, 0.1065, 0.1065]$. The one-hot label is $y = [1, 0, 0]$.
+      </p>
+
+      <div class="deriv-step-highlight">
+        <div class="font-sans-ui text-xs font-bold text-blue-600 uppercase mb-1">Gradient</div>
+        $$\frac{\partial L}{\partial z} = q - y = [0.7870 - 1,\; 0.1065 - 0,\; 0.1065 - 0] = [-0.2130,\; 0.1065,\; 0.1065]$$
+      </div>
+
+      <p class="mb-2">
+        <strong>Check:</strong> $(-0.2130) + 0.1065 + 0.1065 = 0.000$ ✓
+      </p>
+
+      <p>
+        <strong>Interpretation:</strong> The gradient says "push $z_0$ <em>up</em> by $0.213$ (make cat more confident), push $z_1$ and $z_2$ <em>down</em> by $0.107$ each (make dog and bird less confident)."
+      </p>
+    </section>
+
+    <!-- ═══════════════════════════════════════════ -->
+    <!-- SECTION 7: BACKPROPAGATION CONTEXT         -->
+    <!-- ═══════════════════════════════════════════ -->
+    <section id="sec-7" class="mb-14 scroll-mt-16">
+      <div class="flex items-center gap-2 font-sans-ui text-xs font-bold uppercase tracking-wider text-blue-800 mb-1">
+        <span>Section 07</span>
+      </div>
+      <h2 class="font-sans-ui text-2xl font-bold text-slate-900 mb-4">
+        7. Where $\frac{\partial L}{\partial z}$ Fits in Backpropagation
+      </h2>
+
+      <p class="mb-4">
+        The gradient $\frac{\partial L}{\partial z_i} = q_i - y_i$ is the <strong>starting point</strong> of backpropagation. It tells us how the loss changes with respect to the <em>output</em> of the last linear layer. From here, the chain rule propagates the gradient backward through the entire network:
+      </p>
+
+      <div class="bg-white border border-[#d8e2ef] rounded-xl p-5 sm:p-6 my-8 shadow-sm font-sans-ui">
+        <div class="text-[11px] font-bold uppercase tracking-wider text-blue-700 bg-blue-50 px-2 py-0.5 rounded inline-block mb-3">Backpropagation Flow</div>
+
+        <!-- Flow Diagram using styled divs -->
+        <div class="flex flex-col items-center gap-0">
+          <!-- Forward pass arrows -->
+          <div class="w-full mb-2">
+            <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider text-center mb-3">Forward Pass →</div>
+          </div>
+
+          <div class="flex flex-wrap items-center justify-center gap-2 sm:gap-1 w-full">
+            <div class="bg-slate-100 border border-slate-200 rounded-lg px-3 py-2 text-center min-w-[70px]">
+              <div class="text-[10px] font-bold text-slate-500 uppercase">Input</div>
+              <div class="text-sm font-bold text-slate-700">$x$</div>
+            </div>
+            <div class="text-slate-400 text-lg">→</div>
+            <div class="bg-slate-100 border border-slate-200 rounded-lg px-3 py-2 text-center min-w-[70px]">
+              <div class="text-[10px] font-bold text-slate-500 uppercase">Hidden</div>
+              <div class="text-sm font-bold text-slate-700">$h$</div>
+            </div>
+            <div class="text-slate-400 text-lg">→</div>
+            <div class="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-center min-w-[70px]">
+              <div class="text-[10px] font-bold text-blue-600 uppercase">Linear</div>
+              <div class="text-sm font-bold text-blue-800">$z = Wh+b$</div>
+            </div>
+            <div class="text-slate-400 text-lg">→</div>
+            <div class="bg-teal-50 border border-teal-200 rounded-lg px-3 py-2 text-center min-w-[70px]">
+              <div class="text-[10px] font-bold text-teal-600 uppercase">Softmax</div>
+              <div class="text-sm font-bold text-teal-800">$q$</div>
+            </div>
+            <div class="text-slate-400 text-lg">→</div>
+            <div class="bg-rose-50 border border-rose-200 rounded-lg px-3 py-2 text-center min-w-[70px]">
+              <div class="text-[10px] font-bold text-rose-600 uppercase">CE Loss</div>
+              <div class="text-sm font-bold text-rose-800">$L$</div>
+            </div>
+          </div>
+
+          <!-- Backward pass arrows -->
+          <div class="w-full mt-4 mb-2">
+            <div class="text-[10px] font-bold text-rose-400 uppercase tracking-wider text-center mb-3">← Backward Pass (Gradient Flow)</div>
+          </div>
+
+          <div class="flex flex-wrap items-center justify-center gap-2 sm:gap-1 w-full">
+            <div class="bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-center min-w-[85px]">
+              <div class="text-[9px] font-bold text-slate-500 uppercase">Weight Update</div>
+              <div class="text-xs font-bold text-slate-700 font-mono-code">$\frac{\partial L}{\partial W}$</div>
+            </div>
+            <div class="text-rose-400 text-lg">←</div>
+            <div class="bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-center min-w-[85px]">
+              <div class="text-[9px] font-bold text-slate-500 uppercase">To Prev Layer</div>
+              <div class="text-xs font-bold text-slate-700 font-mono-code">$\frac{\partial L}{\partial h}$</div>
+            </div>
+            <div class="text-rose-400 text-lg">←</div>
+            <div class="bg-blue-50 border border-blue-200 rounded-lg px-2 py-1.5 text-center min-w-[85px]">
+              <div class="text-[9px] font-bold text-blue-600 uppercase">Chain Rule</div>
+              <div class="text-xs font-bold text-blue-800 font-mono-code">$\frac{\partial L}{\partial z}$</div>
+            </div>
+            <div class="text-rose-400 text-lg">←</div>
+            <div class="bg-rose-100 border border-rose-300 rounded-lg px-2 py-1.5 text-center min-w-[85px]">
+              <div class="text-[9px] font-bold text-rose-600 uppercase">Our Result!</div>
+              <div class="text-xs font-bold text-rose-800 font-mono-code">$q - y$</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <p class="mb-4">
+        Once we have $\frac{\partial L}{\partial z} = q - y$, backpropagation continues:
+      </p>
+
+      <div class="deriv-step">
+        <div class="font-sans-ui text-xs font-bold text-slate-500 uppercase mb-1">Gradient w.r.t. weights $W^{(L)}$</div>
+        $$\frac{\partial L}{\partial W^{(L)}} = \frac{\partial L}{\partial z} \cdot (h^{(L-1)})^\top = (q - y) \cdot (h^{(L-1)})^\top$$
+      </div>
+
+      <div class="deriv-step">
+        <div class="font-sans-ui text-xs font-bold text-slate-500 uppercase mb-1">Gradient w.r.t. bias $b^{(L)}$</div>
+        $$\frac{\partial L}{\partial b^{(L)}} = \frac{\partial L}{\partial z} = q - y$$
+      </div>
+
+      <div class="deriv-step">
+        <div class="font-sans-ui text-xs font-bold text-slate-500 uppercase mb-1">Gradient flowing to previous layer</div>
+        $$\frac{\partial L}{\partial h^{(L-1)}} = (W^{(L)})^\top \cdot \frac{\partial L}{\partial z} = (W^{(L)})^\top (q - y)$$
+      </div>
+
+      <p class="mb-4">
+        This last quantity $\frac{\partial L}{\partial h^{(L-1)}}$ becomes the "incoming gradient" for layer $L-1$, and the recursion continues all the way to the first layer. The key point: <em>everything starts from the simple $q - y$ vector</em>.
+      </p>
+
+      <div class="olah-callout-rose font-sans-ui text-sm text-slate-700">
+        <strong class="text-rose-900 block mb-1">Why Frameworks Fuse Softmax + CE Together</strong>
+        In PyTorch, <code class="font-mono-code text-sm bg-slate-100 px-1.5 py-0.5 rounded">nn.CrossEntropyLoss</code> takes <em>raw logits</em> (not softmax outputs) as input. It internally computes softmax and cross-entropy in a <strong>numerically fused</strong> way using the log-sum-exp trick, which is more stable than computing softmax and then taking the log separately. The gradient it backpropagates is exactly $q - y$. If you first apply <code class="font-mono-code text-sm bg-slate-100 px-1.5 py-0.5 rounded">softmax</code> and then pass the result to <code class="font-mono-code text-sm bg-slate-100 px-1.5 py-0.5 rounded">nn.NLLLoss</code>, you lose this numerical advantage.
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════ -->
+    <!-- SECTION 8: SUMMARY + PRACTICE              -->
+    <!-- ═══════════════════════════════════════════ -->
+    <section id="sec-8" class="mb-14 scroll-mt-16">
+      <div class="flex items-center gap-2 font-sans-ui text-xs font-bold uppercase tracking-wider text-blue-800 mb-1">
+        <span>Section 08</span>
+      </div>
+      <h2 class="font-sans-ui text-2xl font-bold text-slate-900 mb-4">
+        8. Summary Table & Practice Problems
+      </h2>
+
+      <div class="bg-white border border-[#e5e2dc] rounded-lg overflow-hidden my-6 shadow-sm">
+        <table class="olah-table">
+          <thead>
+            <tr>
+              <th>Concept</th>
+              <th>Formula</th>
+              <th>Intuition</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="font-semibold text-slate-800">Logits</td>
+              <td>$z = W h + b \in \mathbb{R}^k$</td>
+              <td>Raw, unconstrained network output. Larger → more likely.</td>
+            </tr>
+            <tr>
+              <td class="font-semibold text-slate-800">Softmax</td>
+              <td>$q_i = \frac{e^{z_i}}{\sum_j e^{z_j}}$</td>
+              <td>Turns logits into a valid probability distribution.</td>
+            </tr>
+            <tr>
+              <td class="font-semibold text-slate-800">Shift Invariance</td>
+              <td>$\text{softmax}(z + c) = \text{softmax}(z)$</td>
+              <td>Adding a constant to all logits has no effect. Enables the log-sum-exp trick.</td>
+            </tr>
+            <tr>
+              <td class="font-semibold text-slate-800">Temperature</td>
+              <td>$q_i = \frac{e^{z_i / T}}{\sum_j e^{z_j / T}}$</td>
+              <td>$T \to 0$: sharp (hardmax). $T \to \infty$: flat (uniform).</td>
+            </tr>
+            <tr class="bg-blue-50/40">
+              <td class="font-semibold text-blue-900">CE Loss (one-hot)</td>
+              <td>$L = -\log q_c$</td>
+              <td>Negative log-probability of the true class. Equal to $D_{\text{KL}}(y\|q)$ when $y$ is one-hot.</td>
+            </tr>
+            <tr class="bg-rose-50/40">
+              <td class="font-semibold text-rose-900">Gradient</td>
+              <td>$\frac{\partial L}{\partial z_i} = q_i - y_i$</td>
+              <td>"Predicted minus true" — push true class up, wrong classes down.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- PRACTICE PROBLEMS -->
+      <h3 class="font-sans-ui text-xl font-bold text-slate-900 mt-10 mb-5">Practice Problems</h3>
+
+      <!-- Practice 1 -->
+      <div class="practice-card" id="practice-1">
+        <div class="font-sans-ui">
+          <div class="text-[11px] font-bold text-blue-700 uppercase tracking-wider mb-2">Practice 1 of 4</div>
+          <p class="text-sm text-slate-800 mb-3">
+            For logits $z = [0, 0, 0]$ (3 classes) and true class $y = 1$ (0-indexed), what is the cross-entropy loss $L = -\ln q_y$?
+          </p>
+          <div class="flex flex-wrap items-center gap-3 mb-3">
+            <input type="text" id="p1-input" placeholder="Enter your answer (e.g. 1.099)" class="border border-slate-300 rounded px-3 py-1.5 text-sm font-mono-code w-48 focus:ring-2 focus:ring-blue-300 focus:border-blue-400 outline-none">
+            <button type="button" id="p1-check" class="text-xs px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-700 text-white font-medium transition">Check answer</button>
+            <button type="button" id="p1-hint-btn" class="text-xs px-3 py-1.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium transition">Show hint</button>
+          </div>
+          <div id="p1-result" class="text-sm font-medium mb-2"></div>
+          <div id="p1-hint" class="hint-reveal">
+            <div class="bg-amber-50 border border-amber-200 rounded p-3 text-xs text-amber-900">
+              <strong>Hint:</strong> When all logits are equal, softmax produces a uniform distribution: $q_i = 1/k$ for all $i$. With 3 classes, $q_1 = 1/3$. Then $L = -\ln(1/3) = \ln(3)$.
+            </div>
+          </div>
+          <div id="p1-answer" class="answer-reveal">
+            <div class="bg-teal-50 border border-teal-200 rounded p-3 text-xs text-teal-900 mt-2">
+              <strong>Solution:</strong> All logits equal → $e^{z_i} = e^0 = 1$ for all $i$, so $S = 3$, and $q_i = 1/3$ for all $i$. <br>
+              $L = -\ln(1/3) = \ln(3) \approx 1.0986$ nats. <br>
+              This is the maximum possible loss for a 3-class problem (uniform prediction = maximum ignorance).
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Practice 2 -->
+      <div class="practice-card" id="practice-2">
+        <div class="font-sans-ui">
+          <div class="text-[11px] font-bold text-blue-700 uppercase tracking-wider mb-2">Practice 2 of 4</div>
+          <p class="text-sm text-slate-800 mb-3">
+            Why do practitioners almost always combine softmax with cross-entropy (rather than, say, MSE on the probabilities)?
+          </p>
+          <div class="space-y-2 mb-3">
+            <label class="flex items-start gap-2 cursor-pointer">
+              <input type="radio" name="p2" value="a" class="mt-1"> 
+              <span class="text-sm text-slate-700">Because the gradient with respect to the logits collapses to $q - y$, which is simple and well-behaved</span>
+            </label>
+            <label class="flex items-start gap-2 cursor-pointer">
+              <input type="radio" name="p2" value="b" class="mt-1"> 
+              <span class="text-sm text-slate-700">Because softmax outputs are always integers</span>
+            </label>
+            <label class="flex items-start gap-2 cursor-pointer">
+              <input type="radio" name="p2" value="c" class="mt-1"> 
+              <span class="text-sm text-slate-700">Because cross-entropy is a true distance metric on probability simplices</span>
+            </label>
+            <label class="flex items-start gap-2 cursor-pointer">
+              <input type="radio" name="p2" value="d" class="mt-1"> 
+              <span class="text-sm text-slate-700">Because MSE cannot be differentiated through $\exp$</span>
+            </label>
+          </div>
+          <div class="flex gap-3 mb-3">
+            <button type="button" id="p2-check" class="text-xs px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-700 text-white font-medium transition">Check answer</button>
+            <button type="button" id="p2-hint-btn" class="text-xs px-3 py-1.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium transition">Show hint</button>
+          </div>
+          <div id="p2-result" class="text-sm font-medium mb-2"></div>
+          <div id="p2-hint" class="hint-reveal">
+            <div class="bg-amber-50 border border-amber-200 rounded p-3 text-xs text-amber-900">
+              <strong>Hint:</strong> Think about what makes backpropagation efficient. The gradient $q - y$ has no divisions, no Jacobian inversions. MSE <em>can</em> be differentiated (option d is false), and CE is <em>not</em> a metric (option c is false — it's not symmetric). Softmax outputs are real numbers, not integers (option b is false).
+            </div>
+          </div>
+          <div id="p2-answer" class="answer-reveal">
+            <div class="bg-teal-50 border border-teal-200 rounded p-3 text-xs text-teal-900 mt-2">
+              <strong>Answer: (a)</strong> The gradient $\partial L / \partial z_i = q_i - y_i$ is the key reason. It is simple to compute, numerically stable, has good gradient flow even when the model is badly wrong, and sums to zero (reflecting softmax shift-invariance).
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Practice 3 -->
+      <div class="practice-card" id="practice-3">
+        <div class="font-sans-ui">
+          <div class="text-[11px] font-bold text-blue-700 uppercase tracking-wider mb-2">Practice 3 of 4</div>
+          <p class="text-sm text-slate-800 mb-3">
+            Logits are $z = [1, 1]$ and the true class is $y = 0$ (0-indexed). What is $\frac{\partial L}{\partial z_0}$ for $L = -\ln q_y$ (natural log)?
+          </p>
+          <div class="flex flex-wrap items-center gap-3 mb-3">
+            <input type="text" id="p3-input" placeholder="Enter your answer (e.g. -0.5)" class="border border-slate-300 rounded px-3 py-1.5 text-sm font-mono-code w-48 focus:ring-2 focus:ring-blue-300 focus:border-blue-400 outline-none">
+            <button type="button" id="p3-check" class="text-xs px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-700 text-white font-medium transition">Check answer</button>
+            <button type="button" id="p3-hint-btn" class="text-xs px-3 py-1.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium transition">Show hint</button>
+          </div>
+          <div id="p3-result" class="text-sm font-medium mb-2"></div>
+          <div id="p3-hint" class="hint-reveal">
+            <div class="bg-amber-50 border border-amber-200 rounded p-3 text-xs text-amber-900">
+              <strong>Hint:</strong> Equal logits → $q_0 = q_1 = 0.5$. Use the formula $\partial L / \partial z_0 = q_0 - y_0 = 0.5 - 1$.
+            </div>
+          </div>
+          <div id="p3-answer" class="answer-reveal">
+            <div class="bg-teal-50 border border-teal-200 rounded p-3 text-xs text-teal-900 mt-2">
+              <strong>Solution:</strong> With $z = [1, 1]$, we get $q = [0.5, 0.5]$ (uniform over 2 classes). <br>
+              $\frac{\partial L}{\partial z_0} = q_0 - y_0 = 0.5 - 1 = -0.5$. <br>
+              The negative sign means "increase $z_0$" — the model should become more confident about class 0.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Practice 4 -->
+      <div class="practice-card" id="practice-4">
+        <div class="font-sans-ui">
+          <div class="text-[11px] font-bold text-blue-700 uppercase tracking-wider mb-2">Practice 4 of 4</div>
+          <p class="text-sm text-slate-800 mb-3">
+            Which statement about softmax is <strong>FALSE</strong>?
+          </p>
+          <div class="space-y-2 mb-3">
+            <label class="flex items-start gap-2 cursor-pointer">
+              <input type="radio" name="p4" value="a" class="mt-1"> 
+              <span class="text-sm text-slate-700">$\text{softmax}(z + c) = \text{softmax}(z)$ for any constant $c$ added to every component</span>
+            </label>
+            <label class="flex items-start gap-2 cursor-pointer">
+              <input type="radio" name="p4" value="b" class="mt-1"> 
+              <span class="text-sm text-slate-700">The softmax outputs are nonnegative and sum to $1$</span>
+            </label>
+            <label class="flex items-start gap-2 cursor-pointer">
+              <input type="radio" name="p4" value="c" class="mt-1"> 
+              <span class="text-sm text-slate-700">Softmax is a linear transformation of the logit vector</span>
+            </label>
+            <label class="flex items-start gap-2 cursor-pointer">
+              <input type="radio" name="p4" value="d" class="mt-1"> 
+              <span class="text-sm text-slate-700">Subtracting $\max(z)$ before $\exp$ does not change the softmax value</span>
+            </label>
+          </div>
+          <div class="flex gap-3 mb-3">
+            <button type="button" id="p4-check" class="text-xs px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-700 text-white font-medium transition">Check answer</button>
+            <button type="button" id="p4-hint-btn" class="text-xs px-3 py-1.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium transition">Show hint</button>
+          </div>
+          <div id="p4-result" class="text-sm font-medium mb-2"></div>
+          <div id="p4-hint" class="hint-reveal">
+            <div class="bg-amber-50 border border-amber-200 rounded p-3 text-xs text-amber-900">
+              <strong>Hint:</strong> A linear transformation satisfies $f(\alpha z) = \alpha f(z)$ and $f(z_1 + z_2) = f(z_1) + f(z_2)$. Does softmax satisfy either of these? Try: $\text{softmax}([2, 0]) \neq 2 \cdot \text{softmax}([1, 0])$.
+            </div>
+          </div>
+          <div id="p4-answer" class="answer-reveal">
+            <div class="bg-teal-50 border border-teal-200 rounded p-3 text-xs text-teal-900 mt-2">
+              <strong>Answer: (c) is FALSE.</strong> Softmax involves exponentiation and normalization — it is decidedly <em>nonlinear</em>. For example, $\text{softmax}([2, 0]) = [0.881, 0.119]$ while $2 \times \text{softmax}([1, 0]) = 2 \times [0.731, 0.269] = [1.462, 0.538]$, which isn't even a valid distribution. <br>
+              Options (a), (b), and (d) are all true properties we proved in the notes.
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+
+  <script>
+    // ═══════════════════════════════════════════════
+    // 1. Smooth section navigation
+    // ═══════════════════════════════════════════════
+    document.querySelectorAll('.nav-jump').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var targetId = btn.getAttribute('data-scroll');
+        var el = document.getElementById(targetId);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      });
+    });
+
+    // ═══════════════════════════════════════════════
+    // 2. Interactive Softmax & Temperature Playground
+    // ═══════════════════════════════════════════════
+    var sliderZ0 = document.getElementById('slider-z0');
+    var sliderZ1 = document.getElementById('slider-z1');
+    var sliderZ2 = document.getElementById('slider-z2');
+    var sliderTemp = document.getElementById('slider-temp');
+
+    function softmax(z) {
+      var maxZ = Math.max.apply(null, z);
+      var exps = z.map(function(zi) { return Math.exp(zi - maxZ); });
+      var sumExp = exps.reduce(function(a, b) { return a + b; }, 0);
+      return exps.map(function(e) { return e / sumExp; });
+    }
+
+    function updatePlayground() {
+      var z0 = parseFloat(sliderZ0.value);
+      var z1 = parseFloat(sliderZ1.value);
+      var z2 = parseFloat(sliderZ2.value);
+      var T = parseFloat(sliderTemp.value);
+
+      // Update labels
+      document.getElementById('lbl-z0').textContent = z0.toFixed(2);
+      document.getElementById('lbl-z1').textContent = z1.toFixed(2);
+      document.getElementById('lbl-z2').textContent = z2.toFixed(2);
+      document.getElementById('lbl-temp').textContent = T.toFixed(1);
+
+      // Compute softmax with temperature
+      var scaledZ = [z0 / T, z1 / T, z2 / T];
+      var q = softmax(scaledZ);
+
+      // Update bars
+      var barCat = document.getElementById('bar-cat');
+      var barDog = document.getElementById('bar-dog');
+      var barBird = document.getElementById('bar-bird');
+
+      var minBarWidth = 3; // minimum percentage width for visibility
+      barCat.style.width = Math.max(q[0] * 100, minBarWidth) + '%';
+      barDog.style.width = Math.max(q[1] * 100, minBarWidth) + '%';
+      barBird.style.width = Math.max(q[2] * 100, minBarWidth) + '%';
+
+      document.getElementById('lbl-pcat').textContent = q[0].toFixed(3);
+      document.getElementById('lbl-pdog').textContent = q[1].toFixed(3);
+      document.getElementById('lbl-pbird').textContent = q[2].toFixed(3);
+
+      // Stats
+      var sumQ = q[0] + q[1] + q[2];
+      document.getElementById('val-sum').textContent = sumQ.toFixed(3);
+
+      // Cross-entropy loss (true class = 0)
+      var ce = -Math.log(q[0]);
+      document.getElementById('val-ce-loss').textContent = ce.toFixed(3);
+
+      // Gradient = q - y (one-hot y = [1, 0, 0])
+      var g0 = q[0] - 1;
+      var g1 = q[1] - 0;
+      var g2 = q[2] - 0;
+      document.getElementById('val-grad0').textContent = (g0 >= 0 ? '' : '−') + Math.abs(g0).toFixed(3);
+      document.getElementById('val-gradsum').textContent = (g0 + g1 + g2).toFixed(6);
+      document.getElementById('val-gradvec').textContent = '[' + 
+        ((g0 >= 0 ? '' : '−') + Math.abs(g0).toFixed(3)) + ', ' + 
+        ((g1 >= 0 ? '' : '−') + Math.abs(g1).toFixed(3)) + ', ' + 
+        ((g2 >= 0 ? '' : '−') + Math.abs(g2).toFixed(3)) + ']';
+    }
+
+    [sliderZ0, sliderZ1, sliderZ2, sliderTemp].forEach(function(slider) {
+      slider.addEventListener('input', updatePlayground);
+    });
+
+    // Presets
+    document.getElementById('btn-preset-peaked').addEventListener('click', function() {
+      sliderZ0.value = 5; sliderZ1.value = 1; sliderZ2.value = 0; sliderTemp.value = 1;
+      updatePlayground();
+    });
+    document.getElementById('btn-preset-flat').addEventListener('click', function() {
+      sliderZ0.value = 0; sliderZ1.value = 0; sliderZ2.value = 0; sliderTemp.value = 1;
+      updatePlayground();
+    });
+    document.getElementById('btn-preset-default').addEventListener('click', function() {
+      sliderZ0.value = 2; sliderZ1.value = 1; sliderZ2.value = 0.1; sliderTemp.value = 1;
+      updatePlayground();
+    });
+
+    // ═══════════════════════════════════════════════
+    // 3. Practice Problems
+    // ═══════════════════════════════════════════════
+
+    // Practice 1: Numerical answer
+    document.getElementById('p1-check').addEventListener('click', function() {
+      var input = parseFloat(document.getElementById('p1-input').value);
+      var answer = Math.log(3); // ~1.0986
+      var resultEl = document.getElementById('p1-result');
+      var answerEl = document.getElementById('p1-answer');
+      if (Math.abs(input - answer) < 0.02) {
+        resultEl.innerHTML = '<span class="text-teal-700">✓ Correct!</span> $\\ln(3) \\approx 1.0986$ nats.';
+        answerEl.classList.add('show');
+      } else {
+        resultEl.innerHTML = '<span class="text-rose-700">✗ Not quite.</span> Try computing softmax of equal logits first.';
+      }
+      if (typeof renderMathInElement === 'function') {
+        renderMathInElement(resultEl, { delimiters: [{ left: '$', right: '$', display: false }], throwOnError: false });
+      }
+    });
+    document.getElementById('p1-hint-btn').addEventListener('click', function() {
+      document.getElementById('p1-hint').classList.toggle('show');
+    });
+
+    // Practice 2: Multiple choice
+    document.getElementById('p2-check').addEventListener('click', function() {
+      var selected = document.querySelector('input[name="p2"]:checked');
+      var resultEl = document.getElementById('p2-result');
+      var answerEl = document.getElementById('p2-answer');
+      if (!selected) {
+        resultEl.innerHTML = '<span class="text-amber-700">Please select an option.</span>';
+        return;
+      }
+      if (selected.value === 'a') {
+        resultEl.innerHTML = '<span class="text-teal-700">✓ Correct!</span> The $q - y$ gradient is the primary reason.';
+        answerEl.classList.add('show');
+      } else {
+        resultEl.innerHTML = '<span class="text-rose-700">✗ Not quite.</span> Think about what makes the backward pass simple.';
+      }
+      if (typeof renderMathInElement === 'function') {
+        renderMathInElement(resultEl, { delimiters: [{ left: '$', right: '$', display: false }], throwOnError: false });
+      }
+    });
+    document.getElementById('p2-hint-btn').addEventListener('click', function() {
+      document.getElementById('p2-hint').classList.toggle('show');
+    });
+
+    // Practice 3: Numerical answer
+    document.getElementById('p3-check').addEventListener('click', function() {
+      var input = parseFloat(document.getElementById('p3-input').value);
+      var answer = -0.5;
+      var resultEl = document.getElementById('p3-result');
+      var answerEl = document.getElementById('p3-answer');
+      if (Math.abs(input - answer) < 0.02) {
+        resultEl.innerHTML = '<span class="text-teal-700">✓ Correct!</span> $q_0 - y_0 = 0.5 - 1 = -0.5$.';
+        answerEl.classList.add('show');
+      } else {
+        resultEl.innerHTML = '<span class="text-rose-700">✗ Not quite.</span> Remember: $\\partial L / \\partial z_0 = q_0 - y_0$, and equal logits → uniform softmax.';
+      }
+      if (typeof renderMathInElement === 'function') {
+        renderMathInElement(resultEl, { delimiters: [{ left: '$', right: '$', display: false }], throwOnError: false });
+      }
+    });
+    document.getElementById('p3-hint-btn').addEventListener('click', function() {
+      document.getElementById('p3-hint').classList.toggle('show');
+    });
+
+    // Practice 4: Multiple choice
+    document.getElementById('p4-check').addEventListener('click', function() {
+      var selected = document.querySelector('input[name="p4"]:checked');
+      var resultEl = document.getElementById('p4-result');
+      var answerEl = document.getElementById('p4-answer');
+      if (!selected) {
+        resultEl.innerHTML = '<span class="text-amber-700">Please select an option.</span>';
+        return;
+      }
+      if (selected.value === 'c') {
+        resultEl.innerHTML = '<span class="text-teal-700">✓ Correct!</span> Softmax is highly nonlinear.';
+        answerEl.classList.add('show');
+      } else {
+        resultEl.innerHTML = '<span class="text-rose-700">✗ Not quite.</span> Think about whether $\\text{softmax}(\\alpha z) = \\alpha \\cdot \\text{softmax}(z)$ holds.';
+      }
+      if (typeof renderMathInElement === 'function') {
+        renderMathInElement(resultEl, { delimiters: [{ left: '$', right: '$', display: false }], throwOnError: false });
+      }
+    });
+    document.getElementById('p4-hint-btn').addEventListener('click', function() {
+      document.getElementById('p4-hint').classList.toggle('show');
+    });
+
+    // ═══════════════════════════════════════════════
+    // 4. Initialize KaTeX + Playground
+    // ═══════════════════════════════════════════════
+    function initAll() {
+      updatePlayground();
+      if (typeof renderMathInElement === 'function') {
+        renderMathInElement(document.body, {
+          delimiters: [
+            { left: '$$', right: '$$', display: true },
+            { left: '$', right: '$', display: false },
+            { left: '\\(', right: '\\)', display: false },
+            { left: '\\[', right: '\\]', display: true }
+          ],
+          throwOnError: false
+        });
+      }
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initAll);
+    } else {
+      initAll();
+    }
+  </script>
+</body>
+</html>
