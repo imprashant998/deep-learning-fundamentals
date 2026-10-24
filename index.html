@@ -89,7 +89,7 @@
         <h2 class="font-sans-ui text-sm font-bold uppercase tracking-wider text-slate-700">
           Published Notes & Interactive Modules
         </h2>
-        <span class="font-sans-ui text-xs text-slate-500 font-medium">2 Notes Available</span>
+        <span class="font-sans-ui text-xs text-slate-500 font-medium">3 Notes Available</span>
       </div>
 
       <!-- Notes Grid -->
@@ -177,6 +177,47 @@
           </div>
         </article>
 
+        <!-- Featured Item 3: SGD Noise & Batch Size Notes -->
+        <article class="article-card rounded-xl p-6 sm:p-8">
+          <div class="flex flex-wrap items-center gap-2 font-sans-ui text-xs mb-3">
+            <span class="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 font-semibold">Part III &bull; Optimization</span>
+            <span class="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-medium">Interactive Visuals</span>
+            <span class="text-slate-400">&bull;</span>
+            <span class="text-slate-500 font-mono-code">SGD &amp; Batch Size</span>
+          </div>
+
+          <h3 class="font-sans-ui text-2xl font-bold text-slate-900 mb-3">
+            <a href="sgd_batch_size_noise_notes.html" class="hover:text-blue-700 transition">
+              SGD Noise &amp; Batch Size: Why Moderate Batches Win
+            </a>
+          </h3>
+
+          <p class="text-slate-600 text-base leading-relaxed mb-6">
+            Why does SGD use batches of 32&ndash;512 instead of the full dataset? A visual, mathematical walkthrough covering minibatch gradient variance ($\sigma^2/B$), the compute&ndash;noise tradeoff, learning rate scaling rules, and the surprising way gradient noise acts as an implicit regularizer that helps escape sharp minima.
+          </p>
+
+          <div class="flex flex-wrap items-center gap-1.5 mb-6 font-sans-ui text-xs text-slate-600">
+            <span class="bg-slate-100 px-2 py-1 rounded">Minibatch Variance</span>
+            <span class="bg-slate-100 px-2 py-1 rounded">$\sigma / \sqrt{B}$</span>
+            <span class="bg-slate-100 px-2 py-1 rounded">Linear LR Scaling</span>
+            <span class="bg-slate-100 px-2 py-1 rounded">Sharp vs Flat Minima</span>
+            <span class="bg-slate-100 px-2 py-1 rounded">Implicit Regularization</span>
+            <span class="bg-slate-100 px-2 py-1 rounded">Interactive Landscape</span>
+          </div>
+
+          <div class="pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-4 font-sans-ui">
+            <div class="text-xs text-slate-500">
+              Prerequisite: <a href="softmax_cross_entropy_loss_notes.html" class="text-blue-700 hover:underline font-medium">Part II &bull; Softmax &amp; Cross-Entropy Loss</a>
+            </div>
+            <a href="sgd_batch_size_noise_notes.html" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold transition shadow-sm">
+              Read Notes
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/>
+              </svg>
+            </a>
+          </div>
+        </article>
+
         <!-- Upcoming Topics Card -->
         <div class="rounded-xl border border-dashed border-[#d8d5cb] p-6 sm:p-8 bg-white/40">
           <div class="font-sans-ui text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">
@@ -208,6 +249,7 @@
       <div class="flex items-center gap-4">
         <a href="information_entropy_cross_entropy_notes.html" class="hover:text-slate-800 transition">Part I: Information Theory</a>
         <a href="softmax_cross_entropy_loss_notes.html" class="hover:text-slate-800 transition">Part II: Softmax &amp; Loss</a>
+        <a href="sgd_batch_size_noise_notes.html" class="hover:text-slate-800 transition">Part III: SGD &amp; Batch Size</a>
         <a href="https://github.com/imprashant998/deep-learning-fundamentals" target="_blank" rel="noopener noreferrer" class="hover:text-slate-800 transition">GitHub</a>
       </div>
     </div>

@@ -1,0 +1,1494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SGD Noise &amp; Batch Size — Why Moderate Batches Win</title>
+  <meta name="description" content="An intuitive, visual explanation of how stochastic gradient descent estimates the true gradient from minibatches, how noise scales with batch size, and why moderate batch sizes often generalize better than very large ones.">
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
+  <style>
+    :root {
+      --bg-paper: #faf9f5;
+      --bg-card: #ffffff;
+      --ink-primary: #1e242b;
+      --ink-secondary: #4a5568;
+      --ink-muted: #718096;
+      --accent-blue: #2b6cb0;
+      --accent-teal: #0d9488;
+      --accent-amber: #d97706;
+      --accent-rose: #e11d48;
+      --border-subtle: #e5e2dc;
+    }
+    body {
+      background-color: var(--bg-paper);
+      color: var(--ink-primary);
+      font-family: 'Newsreader', Georgia, Cambria, "Times New Roman", Times, serif;
+      font-size: 1.15rem;
+      line-height: 1.78;
+      -webkit-font-smoothing: antialiased;
+    }
+    .font-sans-ui {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    .font-mono-code {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .math-block {
+      background: #ffffff;
+      border: 1px solid #e6e4dd;
+      border-left: 4px solid #2b6cb0;
+      border-radius: 0.5rem;
+      padding: 1.1rem 1.4rem;
+      margin: 1.5rem 0;
+      overflow-x: auto;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+    }
+    .math-block-teal {
+      background: #ffffff;
+      border: 1px solid #d1e7e4;
+      border-left: 4px solid #0d9488;
+      border-radius: 0.5rem;
+      padding: 1.1rem 1.4rem;
+      margin: 1.5rem 0;
+      overflow-x: auto;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+    }
+    .math-block-amber {
+      background: #ffffff;
+      border: 1px solid #f3e8d0;
+      border-left: 4px solid #d97706;
+      border-radius: 0.5rem;
+      padding: 1.1rem 1.4rem;
+      margin: 1.5rem 0;
+      overflow-x: auto;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+    }
+    .math-block-rose {
+      background: #ffffff;
+      border: 1px solid #f5d5dc;
+      border-left: 4px solid #e11d48;
+      border-radius: 0.5rem;
+      padding: 1.1rem 1.4rem;
+      margin: 1.5rem 0;
+      overflow-x: auto;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+    }
+    .olah-callout {
+      background: #f3f6fa;
+      border: 1px solid #d8e2ef;
+      border-radius: 0.6rem;
+      padding: 1.25rem 1.5rem;
+      margin: 1.75rem 0;
+    }
+    .olah-callout-teal {
+      background: #f0fdf9;
+      border: 1px solid #c6ede5;
+      border-radius: 0.6rem;
+      padding: 1.25rem 1.5rem;
+      margin: 1.75rem 0;
+    }
+    .olah-callout-amber {
+      background: #fffbeb;
+      border: 1px solid #f3e2b3;
+      border-radius: 0.6rem;
+      padding: 1.25rem 1.5rem;
+      margin: 1.75rem 0;
+    }
+    .olah-callout-rose {
+      background: #fff5f7;
+      border: 1px solid #f5d0d8;
+      border-radius: 0.6rem;
+      padding: 1.25rem 1.5rem;
+      margin: 1.75rem 0;
+    }
+    .katex-display {
+      margin: 0.35rem 0 !important;
+    }
+    .katex {
+      font-size: 1.06em !important;
+    }
+    table.olah-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.92rem;
+      line-height: 1.5;
+    }
+    table.olah-table th {
+      background-color: #f4f2ec;
+      color: #2d3748;
+      font-weight: 600;
+      text-align: left;
+      padding: 0.75rem 1rem;
+      border-bottom: 2px solid #d6d3c9;
+    }
+    table.olah-table td {
+      padding: 0.7rem 1rem;
+      border-bottom: 1px solid #e8e5dc;
+    }
+    table.olah-table tr:last-child td {
+      border-bottom: none;
+    }
+    .deriv-step {
+      background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+      border: 1px solid #e2e8f0;
+      border-radius: 0.5rem;
+      padding: 1rem 1.25rem;
+      margin: 0.75rem 0;
+    }
+    .deriv-step-highlight {
+      background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+      border: 1px solid #bfdbfe;
+      border-radius: 0.5rem;
+      padding: 1rem 1.25rem;
+      margin: 0.75rem 0;
+    }
+    /* Interactive canvas */
+    .viz-container {
+      background: #ffffff;
+      border: 1px solid #e5e2dc;
+      border-radius: 0.75rem;
+      padding: 1.5rem;
+      margin: 1.5rem 0;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      border-radius: 0.5rem;
+    }
+    input[type="range"] {
+      accent-color: #2b6cb0;
+    }
+    /* Practice problems */
+    .practice-card {
+      background: #ffffff;
+      border: 1px solid #e5e2dc;
+      border-radius: 0.75rem;
+      padding: 1.5rem;
+      margin: 1.25rem 0;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+    }
+    .practice-card .answer-reveal {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.4s ease, opacity 0.3s ease;
+      opacity: 0;
+    }
+    .practice-card .answer-reveal.show {
+      max-height: 800px;
+      opacity: 1;
+    }
+    .practice-card .hint-reveal {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.35s ease, opacity 0.3s ease;
+      opacity: 0;
+    }
+    .practice-card .hint-reveal.show {
+      max-height: 300px;
+      opacity: 1;
+    }
+    /* Noise dot animation */
+    @keyframes noisePulse {
+      0%, 100% { opacity: 0.45; }
+      50% { opacity: 1; }
+    }
+    .noise-dot {
+      animation: noisePulse 2s ease-in-out infinite;
+    }
+  </style>
+</head>
+<body class="min-h-screen selection:bg-blue-100 selection:text-blue-900">
+
+  <!-- Top Editorial Header & Sticky Navigation -->
+  <header class="border-b border-[#e5e2dc] bg-[#faf9f5]/95 backdrop-blur sticky top-0 z-30">
+    <div class="max-w-4xl mx-auto px-4 sm:px-8 py-3 flex flex-wrap items-center justify-between gap-2 font-sans-ui">
+      <div class="flex items-center gap-2.5">
+        <span class="w-2.5 h-2.5 rounded-full bg-blue-700 inline-block"></span>
+        <span class="text-xs font-semibold tracking-wider uppercase text-slate-600">Deep Learning Foundations</span>
+        <span class="text-slate-300">|</span>
+        <span class="text-xs text-blue-700 font-medium">Part III: SGD &amp; Batch Size</span>
+      </div>
+      <nav class="flex flex-wrap items-center gap-1 sm:gap-1.5 text-xs">
+        <button type="button" data-scroll="sec-1" class="nav-jump px-2 py-1 rounded hover:bg-slate-200/70 text-slate-700 font-medium transition">1. Setup</button>
+        <button type="button" data-scroll="sec-2" class="nav-jump px-2 py-1 rounded hover:bg-slate-200/70 text-slate-700 font-medium transition">2. Variance</button>
+        <button type="button" data-scroll="sec-3" class="nav-jump px-2 py-1 rounded hover:bg-slate-200/70 text-slate-700 font-medium transition">3. Tradeoff</button>
+        <button type="button" data-scroll="sec-4" class="nav-jump px-2 py-1 rounded hover:bg-slate-200/70 text-slate-700 font-medium transition">4. LR Scaling</button>
+        <button type="button" data-scroll="sec-5" class="nav-jump px-2 py-1 rounded hover:bg-slate-200/70 text-slate-700 font-medium transition">5. Regularization</button>
+        <button type="button" data-scroll="sec-6" class="nav-jump px-2 py-1 rounded hover:bg-slate-200/70 text-slate-700 font-medium transition">6. Landscape</button>
+        <button type="button" data-scroll="sec-7" class="nav-jump px-2 py-1 rounded hover:bg-slate-200/70 text-slate-700 font-medium transition">7. Practice</button>
+        <button type="button" data-scroll="sec-8" class="nav-jump px-2 py-1 rounded hover:bg-slate-200/70 text-slate-700 font-medium transition">8. Practice</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="max-w-3xl mx-auto px-5 sm:px-8 pt-10 pb-24">
+
+    <!-- Article Title Banner -->
+    <div class="border-b border-[#e5e2dc] pb-8 mb-10">
+      <div class="font-sans-ui text-xs font-semibold uppercase tracking-widest text-blue-800 mb-3">
+        Deep Learning Foundations &middot; Optimization
+      </div>
+      <h1 class="font-sans-ui text-3xl sm:text-4xl font-bold tracking-tight text-slate-900 leading-tight mb-4">
+        SGD Noise &amp; Batch Size: Why Moderate Batches Win
+      </h1>
+      <p class="text-lg text-slate-600 italic mb-5">
+        Stochastic gradient descent doesn&rsquo;t compute the exact gradient &mdash; it estimates it from a tiny subset of the data. That estimation noise shrinks with the square root of the batch size while the compute cost grows linearly. This tension, together with the surprising regularization benefit of noise, explains why batch sizes of 32&ndash;512 dominate practice and why very large batches need special treatment.
+      </p>
+      <div class="font-sans-ui text-xs text-slate-500 flex flex-wrap items-center gap-x-4 gap-y-2 pt-2">
+        <div>
+          Prereq: <a href="softmax_cross_entropy_loss_notes.html" class="text-blue-700 hover:underline font-medium">Part II &bull; Softmax &amp; Loss</a>
+        </div>
+        <div>
+          <a href="index.html" class="text-blue-700 hover:underline font-medium">&larr; All Notes</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================================================================ -->
+    <!--  SECTION 1 — THE SETUP: FULL GD vs SGD                          -->
+    <!-- ================================================================ -->
+    <section id="sec-1" class="mb-14">
+      <h2 class="font-sans-ui text-2xl font-bold text-slate-900 mb-5 flex items-center gap-3">
+        <span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-700 text-white text-sm font-bold">1</span>
+        The Setup: Full Gradient vs. Minibatch Estimate
+      </h2>
+
+      <p>
+        Suppose we have a dataset of $N$ training examples and a loss function $\mathcal{L}(\theta)$. The <strong>true</strong> (full-batch) gradient is the average of per-example gradients:
+      </p>
+
+      <div class="math-block">
+        $$g = \nabla_\theta \mathcal{L}(\theta) = \frac{1}{N}\sum_{i=1}^{N} \nabla_\theta \ell_i(\theta)$$
+      </div>
+
+      <p>
+        Computing this sum over <em>all</em> $N$ examples is expensive. With ImageNet ($N \approx 1.28$ million), every single gradient step would require a full pass through the entire dataset. This is gradient descent in its purest form &mdash; deterministic, unbiased, but painfully slow.
+      </p>
+
+      <p>
+        <strong>Stochastic Gradient Descent (SGD)</strong> takes a shortcut: it picks a <em>minibatch</em> $\mathcal{B}$ of $B$ examples uniformly at random (with or without replacement) and uses their average gradient as an <em>estimate</em> of the full gradient:
+      </p>
+
+      <div class="math-block-teal">
+        $$\hat{g}_B = \frac{1}{B}\sum_{i \in \mathcal{B}} \nabla_\theta \ell_i(\theta)$$
+      </div>
+
+      <div class="olah-callout">
+        <div class="font-sans-ui text-sm font-semibold text-blue-900 mb-1">🎯 Key Insight</div>
+        <p class="text-[0.98rem] text-slate-700 mb-0">
+          The minibatch gradient $\hat{g}_B$ is an <strong>unbiased estimator</strong> of the true gradient: $\mathbb{E}[\hat{g}_B] = g$. No matter how small the batch, we&rsquo;re pointed in the right direction <em>on average</em>. The question is: <strong>how noisy</strong> is this estimate?
+        </p>
+      </div>
+
+      <p>
+        This question &mdash; <em>how much does $\hat{g}_B$ scatter around $g$?</em> &mdash; is the central theme of this entire discussion. Let&rsquo;s make it precise.
+      </p>
+    </section>
+
+    <!-- ================================================================ -->
+    <!--  SECTION 2 — THE VARIANCE FORMULA                               -->
+    <!-- ================================================================ -->
+    <section id="sec-2" class="mb-14">
+      <h2 class="font-sans-ui text-2xl font-bold text-slate-900 mb-5 flex items-center gap-3">
+        <span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-700 text-white text-sm font-bold">2</span>
+        The Variance of the Minibatch Gradient
+      </h2>
+
+      <h3 class="font-sans-ui text-lg font-semibold text-slate-800 mb-3">Setting Up the Random Variable</h3>
+
+      <p>
+        Consider a single coordinate $j$ of the gradient vector. For each randomly sampled example $i$, the per-example gradient $[\nabla_\theta \ell_i]_j$ is a <strong>random variable</strong> because $i$ is chosen randomly. Assume these per-example gradients have:
+      </p>
+
+      <ul class="list-disc ml-6 space-y-2 mb-4">
+        <li><strong>Mean</strong> (the true gradient for coordinate $j$): $\mathbb{E}[[\nabla \ell_i]_j] = g_j$</li>
+        <li><strong>Variance</strong> (per-example scatter around $g_j$): $\text{Var}([\nabla \ell_i]_j) = \sigma^2$</li>
+      </ul>
+
+      <p>
+        When we sample $B$ examples independently, the minibatch gradient for coordinate $j$ is simply their average:
+      </p>
+
+      <div class="math-block">
+        $$[\hat{g}_B]_j = \frac{1}{B}\sum_{k=1}^{B} X_k \quad \text{where each } X_k \sim (\mu = g_j, \;\sigma^2)$$
+      </div>
+
+      <h3 class="font-sans-ui text-lg font-semibold text-slate-800 mb-3 mt-8">Deriving the Variance of the Mean</h3>
+
+      <p>
+        This is the variance of the sample mean of $B$ i.i.d. random variables &mdash; a direct application of a fundamental result from probability theory:
+      </p>
+
+      <div class="deriv-step">
+        <div class="font-sans-ui text-xs font-bold uppercase tracking-wider text-blue-800 mb-2">Step 1 &mdash; Linearity of Variance for Independent RVs</div>
+        <p class="text-[1rem]">Since the $B$ examples are drawn independently:</p>
+        $$\text{Var}\!\left(\sum_{k=1}^{B} X_k\right) = \sum_{k=1}^{B} \text{Var}(X_k) = B \cdot \sigma^2$$
+      </div>
+
+      <div class="deriv-step">
+        <div class="font-sans-ui text-xs font-bold uppercase tracking-wider text-blue-800 mb-2">Step 2 &mdash; Pulling Out the Constant $1/B$</div>
+        <p class="text-[1rem]">Recall that $\text{Var}(cX) = c^2 \text{Var}(X)$. Applying this to $c = 1/B$:</p>
+        $$\text{Var}\!\left(\frac{1}{B}\sum_{k=1}^{B} X_k\right) = \frac{1}{B^2} \cdot B \cdot \sigma^2 = \frac{\sigma^2}{B}$$
+      </div>
+
+      <div class="deriv-step-highlight">
+        <div class="font-sans-ui text-xs font-bold uppercase tracking-wider text-blue-800 mb-2">Result &mdash; The Fundamental Noise Formula</div>
+        $$\boxed{\text{Var}(\hat{g}_B) = \frac{\sigma^2}{B}} \qquad \text{sd}(\hat{g}_B) = \frac{\sigma}{\sqrt{B}}$$
+      </div>
+
+      <div class="olah-callout-teal">
+        <div class="font-sans-ui text-sm font-semibold text-teal-900 mb-1">📖 Reading this Formula</div>
+        <p class="text-[0.98rem] text-slate-700 mb-2">
+          <strong>Variance</strong> (the squared spread) shrinks as $1/B$. <strong>Standard deviation</strong> (the spread in the same units as the gradient) shrinks as $1/\sqrt{B}$. This square-root relationship is the key insight:
+        </p>
+        <ul class="list-disc ml-5 text-[0.95rem] text-slate-700 space-y-1 mb-0">
+          <li>$B = 1$: Noise = $\sigma$ (pure stochastic &mdash; each gradient is a single-example estimate)</li>
+          <li>$B = 4$: Noise = $\sigma / 2$ (halved the noise, but 4&times; the compute)</li>
+          <li>$B = 100$: Noise = $\sigma / 10$ (10&times; less noise, 100&times; the compute)</li>
+          <li>$B = N$: Noise = $\sigma / \sqrt{N} \approx 0$ (full-batch GD, practically zero noise)</li>
+        </ul>
+      </div>
+
+      <h3 class="font-sans-ui text-lg font-semibold text-slate-800 mb-3 mt-8">The Concrete Numbers: The Quadrupling Rule</h3>
+
+      <p>
+        A foundational rule of thumb summarizes this tension directly: <strong>quadrupling the batch halves the noise, but costs four times as much compute per step</strong>. Let&rsquo;s trace how this scaling behaves across powers of four:
+      </p>
+
+      <div class="overflow-x-auto my-6">
+        <table class="olah-table">
+          <thead>
+            <tr>
+              <th>Batch Size</th>
+              <th>Std Dev (noise)</th>
+              <th>Relative Noise</th>
+              <th>Compute / Step</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td class="font-mono-code">B</td><td>$\sigma / \sqrt{B}$</td><td>1&times;</td><td>1&times;</td></tr>
+            <tr><td class="font-mono-code">4B</td><td>$\sigma / \sqrt{4B} = \sigma / (2\sqrt{B})$</td><td>0.5&times;</td><td>4&times;</td></tr>
+            <tr><td class="font-mono-code">16B</td><td>$\sigma / (4\sqrt{B})$</td><td>0.25&times;</td><td>16&times;</td></tr>
+            <tr><td class="font-mono-code">64B</td><td>$\sigma / (8\sqrt{B})$</td><td>0.125&times;</td><td>64&times;</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>
+        Each quadrupling of $B$ halves the standard deviation but quadruples the cost. Buying noise reduction with larger batches quickly becomes <em>economically inefficient</em>. This is <strong>diminishing returns</strong> in action, and it&rsquo;s why practitioners rarely push batch sizes to the extreme.
+      </p>
+    </section>
+
+    <!-- ================================================================ -->
+    <!--  SECTION 3 — THE COMPUTE-NOISE TRADEOFF (INTERACTIVE)           -->
+    <!-- ================================================================ -->
+    <section id="sec-3" class="mb-14">
+      <h2 class="font-sans-ui text-2xl font-bold text-slate-900 mb-5 flex items-center gap-3">
+        <span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-700 text-white text-sm font-bold">3</span>
+        The Compute–Noise Tradeoff (Interactive)
+      </h2>
+
+      <p>
+        The tension between noise reduction and computational cost is the central practical consideration when choosing a batch size. Let&rsquo;s visualize it.
+      </p>
+
+      <!-- Interactive Visualization 1: Noise vs Batch Size -->
+      <div class="viz-container" id="viz-noise-batch">
+        <div class="font-sans-ui text-sm font-bold text-slate-700 mb-4">
+          Interactive: Gradient Noise vs. Batch Size
+        </div>
+        <div class="flex flex-wrap items-center gap-4 mb-4 font-sans-ui text-sm">
+          <label class="flex items-center gap-2">
+            <span class="text-slate-600 font-medium">σ (per-example noise):</span>
+            <input type="range" id="sigma-slider" min="0.5" max="5" step="0.1" value="2">
+            <span id="sigma-val" class="font-mono-code text-blue-700 font-semibold w-10">2.0</span>
+          </label>
+        </div>
+        <canvas id="noise-chart" height="300"></canvas>
+        <div class="flex flex-wrap gap-6 mt-3 font-sans-ui text-xs text-slate-500">
+          <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-blue-600 inline-block"></span> sd(ĝ<sub>B</sub>) = σ/√B</div>
+          <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-rose-500 inline-block"></span> Compute cost ∝ B</div>
+        </div>
+      </div>
+
+      <!-- Interactive Visualization 2: Minibatch Gradient Scatter -->
+      <div class="viz-container" id="viz-scatter">
+        <div class="font-sans-ui text-sm font-bold text-slate-700 mb-2">
+          Interactive: Minibatch Gradient Estimates (2D)
+        </div>
+        <p class="font-sans-ui text-xs text-slate-500 mb-4">
+          Each dot is one minibatch gradient estimate. The &times; marks the true gradient. Drag the slider to see how larger batches tighten the cloud.
+        </p>
+        <div class="flex flex-wrap items-center gap-4 mb-4 font-sans-ui text-sm">
+          <label class="flex items-center gap-2">
+            <span class="text-slate-600 font-medium">Batch size B:</span>
+            <input type="range" id="batch-slider" min="1" max="512" step="1" value="8">
+            <span id="batch-val" class="font-mono-code text-blue-700 font-semibold w-12">8</span>
+          </label>
+          <button id="resample-btn" class="px-3 py-1.5 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold transition shadow-sm">
+            Resample
+          </button>
+        </div>
+        <canvas id="scatter-chart" height="360"></canvas>
+        <div class="flex flex-wrap gap-4 mt-3 font-sans-ui text-xs text-slate-500">
+          <div>
+            sd = <span id="scatter-sd" class="font-mono-code text-blue-700 font-semibold">0.71</span>
+          </div>
+          <div>
+            Variance = <span id="scatter-var" class="font-mono-code text-teal-700 font-semibold">0.50</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="olah-callout-amber">
+        <div class="font-sans-ui text-sm font-semibold text-amber-900 mb-1">⚖️ The Sweet Spot</div>
+        <p class="text-[0.98rem] text-slate-700 mb-0">
+          In practice, the optimal batch size balances three factors: (1) noise must be low enough for training to converge, (2) the batch must be large enough to saturate GPU parallelism, and (3) the batch must not be <em>so</em> large that we lose the regularization benefit of noise. This typically lands at <strong>$B \in [32, 512]$</strong> for most tasks, though large-scale distributed training (GPT-3, PaLM) uses gradient accumulation to simulate much larger effective batches with careful learning rate schedules.
+        </p>
+      </div>
+    </section>
+
+    <!-- ================================================================ -->
+    <!--  SECTION 4 — LEARNING RATE SCALING                              -->
+    <!-- ================================================================ -->
+    <section id="sec-4" class="mb-14">
+      <h2 class="font-sans-ui text-2xl font-bold text-slate-900 mb-5 flex items-center gap-3">
+        <span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-700 text-white text-sm font-bold">4</span>
+        Why Large Batches Need a Larger Learning Rate
+      </h2>
+
+      <p>
+        The SGD parameter update is:
+      </p>
+
+      <div class="math-block">
+        $$\theta_{t+1} = \theta_t - \eta \cdot \hat{g}_B$$
+      </div>
+
+      <p>
+        where $\eta$ is the learning rate. When we increase the batch size from $B$ to $kB$, the gradient estimate $\hat{g}_{kB}$ becomes <strong>less noisy</strong> (std dev shrinks by $1/\sqrt{k}$) but its <strong>expected value stays the same</strong> ($\mathbb{E}[\hat{g}_{kB}] = g$, just like before).
+      </p>
+
+      <p>
+        So the update direction doesn&rsquo;t change on average, but each step now costs $k\times$ more FLOPs. To make the same <em>amount of progress per unit of compute</em>, we need each step to take a proportionally larger stride. The widely used <strong>linear scaling rule</strong> (Goyal et al., 2017) says:
+      </p>
+
+      <div class="math-block-teal">
+        $$\text{When multiplying batch size by } k, \quad \text{multiply learning rate by } k$$
+        $$\eta_{\text{new}} = k \cdot \eta_{\text{base}}$$
+      </div>
+
+      <h3 class="font-sans-ui text-lg font-semibold text-slate-800 mb-3 mt-6">Why Does Linear Scaling Work?</h3>
+
+      <p>
+        Consider the <strong>total expected parameter change</strong> after processing the same number of examples. With batch size $B$, we take $N/B$ steps per epoch, and with batch size $kB$ we take $N/(kB)$ steps. To achieve the same net displacement:
+      </p>
+
+      <div class="deriv-step">
+        <div class="font-sans-ui text-xs font-bold uppercase tracking-wider text-blue-800 mb-2">Net Displacement Over One Epoch</div>
+        <p class="text-[1rem] mb-1"><strong>Small batch:</strong> &ensp; $\Delta\theta = \eta \cdot (N/B) \cdot g = \eta N g / B$</p>
+        <p class="text-[1rem] mb-1"><strong>Large batch:</strong> &ensp; $\Delta\theta = \eta' \cdot (N/(kB)) \cdot g = \eta' N g / (kB)$</p>
+        <p class="text-[1rem]">Setting them equal: $\eta N g / B = \eta' N g / (kB)$ &nbsp;&rArr;&nbsp; $\eta' = k\eta$ &ensp; ✓</p>
+      </div>
+
+      <div class="olah-callout">
+        <div class="font-sans-ui text-sm font-semibold text-blue-900 mb-1">⚠️ The Limits of Linear Scaling</div>
+        <p class="text-[0.98rem] text-slate-700 mb-2">
+          The linear scaling rule works well up to a point, but <strong>breaks down for very large batches</strong>. As $kB$ becomes comparable to the dataset size:
+        </p>
+        <ul class="list-disc ml-5 text-[0.95rem] text-slate-700 space-y-1 mb-0">
+          <li>The noise becomes so small that updates are nearly deterministic, losing regularization benefits</li>
+          <li>Large learning rates cause training instability (overshooting)</li>
+          <li>A <strong>warmup period</strong> (gradually increasing $\eta$) is needed to stabilize early training</li>
+          <li>Beyond a critical batch size, no learning rate can recover the same generalization</li>
+        </ul>
+      </div>
+
+      <h3 class="font-sans-ui text-lg font-semibold text-slate-800 mb-3 mt-6">The Signal-to-Noise Ratio Perspective</h3>
+
+      <p>
+        Another illuminating way to think about this: the <strong>signal-to-noise ratio (SNR)</strong> of the gradient estimate is:
+      </p>
+
+      <div class="math-block-amber">
+        $$\text{SNR} = \frac{\|g\|}{\text{sd}(\hat{g}_B)} = \frac{\|g\| \cdot \sqrt{B}}{\sigma}$$
+      </div>
+
+      <p>
+        The SNR grows as $\sqrt{B}$. When the gradient signal is large (far from a minimum), even a small $B$ gives a good SNR. Near convergence, the signal $\|g\|$ shrinks, and you need a larger $B$ (or smaller $\eta$) to keep the SNR usable. This is one reason <strong>learning rate decay</strong> is so important in practice &mdash; as you approach a minimum, you lower $\eta$ to reduce the effective step size and compensate for the worsening SNR.
+      </p>
+    </section>
+
+    <!-- ================================================================ -->
+    <!--  SECTION 5 — NOISE AS REGULARIZATION                            -->
+    <!-- ================================================================ -->
+    <section id="sec-5" class="mb-14">
+      <h2 class="font-sans-ui text-2xl font-bold text-slate-900 mb-5 flex items-center gap-3">
+        <span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-700 text-white text-sm font-bold">5</span>
+        The Blessing of Noise: Implicit Regularization
+      </h2>
+
+      <p>
+        Here is the surprising twist: the noise in SGD is <strong>not purely bad</strong>. It acts as a powerful <em>implicit regularizer</em>, and this is one of the most important ideas in modern deep learning theory.
+      </p>
+
+      <h3 class="font-sans-ui text-lg font-semibold text-slate-800 mb-3">Sharp vs. Flat Minima</h3>
+
+      <p>
+        The loss landscape of a neural network has many minima (or near-minima). These come in two flavors:
+      </p>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 my-6">
+        <div class="olah-callout-rose">
+          <div class="font-sans-ui text-sm font-bold text-rose-900 mb-2">🔺 Sharp Minima</div>
+          <p class="text-[0.92rem] text-slate-700 mb-2">
+            The loss rises steeply in every direction. The model has memorized training data very precisely. These solutions are <strong>fragile</strong>: a small perturbation to the weights (or a slight distribution shift in the data) causes a large increase in loss.
+          </p>
+          <p class="text-[0.92rem] text-slate-600 mb-0 italic">
+            Sharp minima → poor generalization
+          </p>
+        </div>
+        <div class="olah-callout-teal">
+          <div class="font-sans-ui text-sm font-bold text-teal-900 mb-2">🟢 Flat Minima</div>
+          <p class="text-[0.92rem] text-slate-700 mb-2">
+            The loss is roughly constant in a broad neighborhood. The model captures genuine patterns rather than noise in the data. These solutions are <strong>robust</strong>: small perturbations barely change the loss.
+          </p>
+          <p class="text-[0.92rem] text-slate-600 mb-0 italic">
+            Flat minima → good generalization
+          </p>
+        </div>
+      </div>
+
+      <h3 class="font-sans-ui text-lg font-semibold text-slate-800 mb-3">How SGD Noise Selects Flat Minima</h3>
+
+      <p>
+        Imagine SGD has wandered into a sharp minimum. At each step, the noisy gradient estimate $\hat{g}_B$ includes a random perturbation of magnitude $\sim \sigma / \sqrt{B}$. In a sharp valley, even a modest perturbation can kick the parameters <em>out of the valley entirely</em>. The narrower the valley, the easier it is to escape.
+      </p>
+
+      <p>
+        In contrast, a wide, flat basin can <strong>absorb</strong> these random perturbations without escaping. The optimizer bounces around within the basin but never leaves it.
+      </p>
+
+      <p>
+        The result: <strong>SGD with moderate noise naturally settles into flat minima and escapes sharp ones</strong>. This is an automatic, implicit form of regularization &mdash; no explicit penalty term needed.
+      </p>
+
+      <!-- Interactive Visualization 3: Sharp vs Flat Minima -->
+      <div class="viz-container" id="viz-landscape">
+        <div class="font-sans-ui text-sm font-bold text-slate-700 mb-2">
+          Interactive: Escaping Sharp Minima via SGD Noise
+        </div>
+        <p class="font-sans-ui text-xs text-slate-500 mb-4">
+          Watch how a noisy SGD path bounces out of sharp valleys but stays in flat basins. Adjust the noise level to see the effect.
+        </p>
+        <div class="flex flex-wrap items-center gap-4 mb-4 font-sans-ui text-sm">
+          <label class="flex items-center gap-2">
+            <span class="text-slate-600 font-medium">Noise level (1/√B):</span>
+            <input type="range" id="landscape-noise-slider" min="0.02" max="0.5" step="0.01" value="0.15">
+            <span id="landscape-noise-val" class="font-mono-code text-blue-700 font-semibold w-12">0.15</span>
+          </label>
+          <button id="landscape-restart-btn" class="px-3 py-1.5 rounded-lg bg-teal-700 hover:bg-teal-800 text-white text-xs font-semibold transition shadow-sm">
+            Restart
+          </button>
+        </div>
+        <canvas id="landscape-chart" height="320"></canvas>
+        <div class="flex flex-wrap gap-4 mt-3 font-sans-ui text-xs text-slate-500">
+          <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-rose-500 inline-block"></span> Sharp minimum</div>
+          <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-teal-500 inline-block"></span> Flat minimum</div>
+          <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-blue-600 inline-block"></span> SGD path</div>
+        </div>
+      </div>
+
+      <h3 class="font-sans-ui text-lg font-semibold text-slate-800 mb-3 mt-6">The Noise Scale: Connecting Batch Size and Learning Rate</h3>
+
+      <p>
+        Smith &amp; Le (2018) formalized this intuition by defining the <strong>noise scale</strong> $\mathcal{G}$:
+      </p>
+
+      <div class="math-block-amber">
+        $$\mathcal{G} = \frac{\eta \cdot N}{B} \cdot \bigl(1 - \tfrac{B}{N}\bigr) \;\approx\; \frac{\eta \cdot N}{B} \quad \text{(when } B \ll N\text{)}$$
+      </div>
+
+      <p>
+        This noise scale governs the effective diffusion of SGD through parameter space. Larger $\eta / B$ ratio &rArr; more noise &rArr; more exploration &rArr; better generalization (up to a point). This also explains why:
+      </p>
+
+      <ul class="list-disc ml-6 space-y-2 mb-4">
+        <li><strong>Decreasing batch size</strong> has a similar regularizing effect as <strong>increasing learning rate</strong></li>
+        <li><strong>Both</strong> increase the noise scale $\mathcal{G}$, promoting exploration of the loss landscape</li>
+        <li>There is an <strong>optimal noise scale</strong> for each problem &mdash; too little noise (huge $B$, tiny $\eta$) leads to overfitting, too much noise (tiny $B$, huge $\eta$) prevents convergence</li>
+      </ul>
+    </section>
+
+    <!-- ================================================================ -->
+    <!--  SECTION 6 — THE FULL PICTURE                                   -->
+    <!-- ================================================================ -->
+    <section id="sec-6" class="mb-14">
+      <h2 class="font-sans-ui text-2xl font-bold text-slate-900 mb-5 flex items-center gap-3">
+        <span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-700 text-white text-sm font-bold">6</span>
+        The Full Picture: Putting It All Together
+      </h2>
+
+      <p>
+        Let&rsquo;s collect all the pieces into one coherent story:
+      </p>
+
+      <div class="overflow-x-auto my-6">
+        <table class="olah-table">
+          <thead>
+            <tr>
+              <th>Aspect</th>
+              <th>Small Batch (B = 1–32)</th>
+              <th>Moderate Batch (B = 32–512)</th>
+              <th>Large Batch (B = 1K–64K+)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="font-semibold">Gradient Noise</td>
+              <td>High ($\sigma/\sqrt{B}$ large)</td>
+              <td>Moderate</td>
+              <td>Low (nearly deterministic)</td>
+            </tr>
+            <tr>
+              <td class="font-semibold">Cost / Step</td>
+              <td>Low</td>
+              <td>Moderate</td>
+              <td>Very High</td>
+            </tr>
+            <tr>
+              <td class="font-semibold">GPU Utilization</td>
+              <td>Poor (under-saturated)</td>
+              <td>Good</td>
+              <td>Excellent (memory-bound)</td>
+            </tr>
+            <tr>
+              <td class="font-semibold">Convergence Rate (steps)</td>
+              <td>Many noisy steps needed</td>
+              <td>Balanced</td>
+              <td>Few, precise steps</td>
+            </tr>
+            <tr>
+              <td class="font-semibold">Convergence Rate (time)</td>
+              <td>Can be slow (sequential)</td>
+              <td>Often fastest (wall-clock)</td>
+              <td>Fast if enough GPUs</td>
+            </tr>
+            <tr>
+              <td class="font-semibold">Generalization</td>
+              <td>Good (noise regularizes)</td>
+              <td>Often best</td>
+              <td>Can degrade (sharp minima)</td>
+            </tr>
+            <tr>
+              <td class="font-semibold">LR Tuning</td>
+              <td>Modest $\eta$</td>
+              <td>Standard $\eta$</td>
+              <td>Needs $k\eta$ + warmup + decay</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="olah-callout">
+        <div class="font-sans-ui text-sm font-semibold text-blue-900 mb-1">🧭 The Practitioner&rsquo;s Rule of Thumb</div>
+        <p class="text-[0.98rem] text-slate-700 mb-0">
+          Start with the <strong>largest batch that fits in GPU memory</strong>, use the <strong>linear scaling rule</strong> for the learning rate, add a <strong>warmup schedule</strong>, and <strong>tune from there</strong>. If your validation loss starts diverging from training loss (a sign of too-deterministic optimization), consider a smaller batch or more explicit regularization (dropout, weight decay, data augmentation).
+        </p>
+      </div>
+
+      <!-- Comprehensive visual summary -->
+      <div class="viz-container">
+        <div class="font-sans-ui text-sm font-bold text-slate-700 mb-4">
+          Visual Summary: The Batch Size Spectrum
+        </div>
+        <canvas id="summary-chart" height="260"></canvas>
+        <div class="flex flex-wrap gap-4 mt-3 font-sans-ui text-xs text-slate-500">
+          <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-blue-600 inline-block"></span> Noise level</div>
+          <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-teal-500 inline-block"></span> Generalization quality</div>
+          <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-amber-500 inline-block"></span> Compute efficiency</div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ================================================================ -->
+    <!--  SECTION 7 — PRACTICE PROBLEMS                                  -->
+    <!-- ================================================================ -->
+    <section id="sec-7" class="mb-14">
+      <h2 class="font-sans-ui text-2xl font-bold text-slate-900 mb-5 flex items-center gap-3">
+        <span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-700 text-white text-sm font-bold">7</span>
+        Practice Problems
+      </h2>
+
+      <!-- Problem 1 -->
+      <div class="practice-card" id="p1">
+        <div class="font-sans-ui text-xs font-bold uppercase tracking-wider text-teal-800 mb-2">Problem 1 — Noise Reduction</div>
+        <p class="mb-4">
+          You are training with batch size $B = 64$ and observe gradient standard deviation of $0.5$ per coordinate. Your colleague suggests switching to $B = 256$. What will the new gradient standard deviation be? How many times more FLOPs does each step cost?
+        </p>
+        <div class="flex gap-2 mb-3 font-sans-ui">
+          <button onclick="toggleHint('p1')" class="text-xs px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-100 text-slate-700 font-medium transition">Show Hint</button>
+          <button onclick="toggleAnswer('p1')" class="text-xs px-3 py-1.5 rounded-lg bg-teal-700 hover:bg-teal-800 text-white font-semibold transition shadow-sm">Show Answer</button>
+        </div>
+        <div class="hint-reveal" id="p1-hint">
+          <div class="olah-callout-amber text-[0.92rem]">
+            <strong>Hint:</strong> $\text{sd} = \sigma / \sqrt{B}$. If you know the sd at $B=64$, you can find $\sigma$. Then plug in $B=256$.
+          </div>
+        </div>
+        <div class="answer-reveal" id="p1-answer">
+          <div class="olah-callout-teal text-[0.95rem]">
+            <p class="mb-2"><strong>Solution:</strong></p>
+            <p>At $B = 64$: $\text{sd} = \sigma / \sqrt{64} = \sigma / 8 = 0.5$, so $\sigma = 4.0$.</p>
+            <p>At $B = 256$: $\text{sd} = 4.0 / \sqrt{256} = 4.0 / 16 = \mathbf{0.25}$.</p>
+            <p>The noise is halved (as expected &mdash; $256 = 4 \times 64$ and $\sqrt{4} = 2$).</p>
+            <p class="mb-0">Each step costs $256/64 = \mathbf{4\times}$ more FLOPs.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Problem 2 -->
+      <div class="practice-card" id="p2">
+        <div class="font-sans-ui text-xs font-bold uppercase tracking-wider text-teal-800 mb-2">Problem 2 — Learning Rate Scaling</div>
+        <p class="mb-4">
+          You successfully trained a ResNet-50 on ImageNet with batch size $B = 256$ and learning rate $\eta = 0.1$. You now want to train with $B = 8192$ on a cluster of 32 GPUs. According to the linear scaling rule, what learning rate should you use? What warmup strategy would you apply, and why?
+        </p>
+        <div class="flex gap-2 mb-3 font-sans-ui">
+          <button onclick="toggleHint('p2')" class="text-xs px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-100 text-slate-700 font-medium transition">Show Hint</button>
+          <button onclick="toggleAnswer('p2')" class="text-xs px-3 py-1.5 rounded-lg bg-teal-700 hover:bg-teal-800 text-white font-semibold transition shadow-sm">Show Answer</button>
+        </div>
+        <div class="hint-reveal" id="p2-hint">
+          <div class="olah-callout-amber text-[0.92rem]">
+            <strong>Hint:</strong> The scaling factor is $k = B_{\text{new}} / B_{\text{base}}$. For warmup, think about why early training is particularly unstable with a large $\eta$.
+          </div>
+        </div>
+        <div class="answer-reveal" id="p2-answer">
+          <div class="olah-callout-teal text-[0.95rem]">
+            <p class="mb-2"><strong>Solution:</strong></p>
+            <p>$k = 8192 / 256 = 32$, so $\eta_{\text{new}} = 32 \times 0.1 = \mathbf{3.2}$.</p>
+            <p class="mb-2"><strong>Warmup:</strong> Use a <em>gradual warmup</em> over the first $\sim$5 epochs, linearly increasing $\eta$ from a small value (e.g. 0.1) to 3.2. Reason: at initialization, the network weights are random and gradients are very noisy / large. A learning rate of 3.2 from step 1 would cause catastrophic divergence. Warmup lets the network find a reasonable region of parameter space before applying the full learning rate.</p>
+            <p class="mb-0">This is exactly the recipe from Goyal et al. (2017), &ldquo;Accurate, Large Minibatch SGD.&rdquo;</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Problem 3 -->
+      <div class="practice-card" id="p3">
+        <div class="font-sans-ui text-xs font-bold uppercase tracking-wider text-teal-800 mb-2">Problem 3 — Noise Scale Equivalence</div>
+        <p class="mb-4">
+          Show that halving the batch size $B$ and halving the learning rate $\eta$ preserves the noise scale $\mathcal{G} \approx \eta N / B$. Does this mean the two configurations will train identically? Why or why not?
+        </p>
+        <div class="flex gap-2 mb-3 font-sans-ui">
+          <button onclick="toggleHint('p3')" class="text-xs px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-100 text-slate-700 font-medium transition">Show Hint</button>
+          <button onclick="toggleAnswer('p3')" class="text-xs px-3 py-1.5 rounded-lg bg-teal-700 hover:bg-teal-800 text-white font-semibold transition shadow-sm">Show Answer</button>
+        </div>
+        <div class="hint-reveal" id="p3-hint">
+          <div class="olah-callout-amber text-[0.92rem]">
+            <strong>Hint:</strong> Plug in. For the second part, consider what the noise scale does <em>not</em> capture: the step size and the number of steps per epoch.
+          </div>
+        </div>
+        <div class="answer-reveal" id="p3-answer">
+          <div class="olah-callout-teal text-[0.95rem]">
+            <p class="mb-2"><strong>Solution:</strong></p>
+            <p>Original: $\mathcal{G} = \eta N / B$.</p>
+            <p>Halve both: $\mathcal{G}' = (\eta/2) \cdot N / (B/2) = \eta N / B = \mathcal{G}$. &ensp; ✓ Same noise scale.</p>
+            <p class="mb-2"><strong>But they are NOT identical:</strong></p>
+            <ul class="list-disc ml-5 space-y-1 mb-0">
+              <li>With $B/2$, we take <em>twice as many steps per epoch</em>, each with step size $\eta/2$. Total expected displacement per epoch = $(\eta/2) \cdot (2N/B) \cdot g = \eta N g / B$ — same as before.</li>
+              <li>However, the per-step noise <em>magnitude</em> differs: $\text{sd}(\hat{g}_{B/2}) = \sigma / \sqrt{B/2} = \sigma\sqrt{2}/\sqrt{B}$, which is $\sqrt{2}\times$ larger per step, but $\eta/2$ is smaller, giving an effective perturbation of $(\eta/2) \cdot \sigma\sqrt{2}/\sqrt{B}$.</li>
+              <li>Higher-order dynamics (momentum, curvature interactions) can differ despite the same noise scale.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- Problem 4 -->
+      <div class="practice-card" id="p4">
+        <div class="font-sans-ui text-xs font-bold uppercase tracking-wider text-teal-800 mb-2">Problem 4 — Sharp Minima Escape</div>
+        <p class="mb-4">
+          A sharp minimum has loss landscape curvature (Hessian eigenvalue) $\lambda_{\max} = 100$ in its narrowest direction, with the basin width approximately $w \approx 2\sigma/(\sqrt{B} \cdot \lambda_{\max})$. Explain intuitively why this means higher noise ($\sigma/\sqrt{B}$) makes it easier to escape, and what happens as $B \to N$ (full-batch GD).
+        </p>
+        <div class="flex gap-2 mb-3 font-sans-ui">
+          <button onclick="toggleHint('p4')" class="text-xs px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-100 text-slate-700 font-medium transition">Show Hint</button>
+          <button onclick="toggleAnswer('p4')" class="text-xs px-3 py-1.5 rounded-lg bg-teal-700 hover:bg-teal-800 text-white font-semibold transition shadow-sm">Show Answer</button>
+        </div>
+        <div class="hint-reveal" id="p4-hint">
+          <div class="olah-callout-amber text-[0.92rem]">
+            <strong>Hint:</strong> If the noise perturbation is larger than the basin width, the optimizer will get kicked out. Compare $\sigma/\sqrt{B}$ to $w$.
+          </div>
+        </div>
+        <div class="answer-reveal" id="p4-answer">
+          <div class="olah-callout-teal text-[0.95rem]">
+            <p class="mb-2"><strong>Solution:</strong></p>
+            <p>The gradient noise per step is $\sim \sigma / \sqrt{B}$. For the optimizer to stay in the sharp basin, this perturbation must be <em>smaller</em> than the basin width $w$. When $\sigma/\sqrt{B} > w \cdot \lambda_{\max}$, the random kick exceeds the restoring force and the optimizer escapes.</p>
+            <p>Higher noise (smaller $B$) → larger perturbations → easier escape from sharp, narrow basins.</p>
+            <p class="mb-0">As $B \to N$: noise $\to 0$, the optimizer becomes deterministic (full GD), and can get <strong>permanently trapped</strong> in any minimum it falls into — sharp or flat. This is why full-batch GD can generalize worse despite having the exact gradient: it lacks the noise to escape sharp minima.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================================================================ -->
+    <!--  SECTION 8 — KEY TAKEAWAYS                                      -->
+    <!-- ================================================================ -->
+    <section id="sec-8" class="mb-14">
+      <h2 class="font-sans-ui text-2xl font-bold text-slate-900 mb-5 flex items-center gap-3">
+        <span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-700 text-white text-sm font-bold">8</span>
+        Key Takeaways
+      </h2>
+
+      <div class="olah-callout" style="border-left: 4px solid #2b6cb0;">
+        <ol class="list-decimal ml-5 space-y-3 text-[1rem] text-slate-800">
+          <li>
+            <strong>Variance of the minibatch gradient</strong> is $\sigma^2 / B$, where $\sigma^2$ is the per-example gradient variance and $B$ is the batch size.
+          </li>
+          <li>
+            <strong>Standard deviation (noise) shrinks as $1/\sqrt{B}$</strong> while compute cost grows as $B$. Quadrupling the batch halves the noise at 4&times; the cost.
+          </li>
+          <li>
+            <strong>The linear scaling rule:</strong> when you multiply $B$ by $k$, multiply $\eta$ by $k$ to maintain the same training dynamics. Add warmup for large $k$.
+          </li>
+          <li>
+            <strong>Noise as regularization:</strong> SGD noise helps escape sharp minima and favors flat, generalizable solutions. Too little noise (very large $B$) can <em>hurt</em> generalization.
+          </li>
+          <li>
+            <strong>The noise scale $\mathcal{G} \approx \eta N / B$</strong> unifies the effects of batch size and learning rate on the effective diffusion through parameter space.
+          </li>
+          <li>
+            <strong>The sweet spot</strong> is typically $B \in [32, 512]$, where GPU utilization is good, noise provides regularization, and no heroic learning rate schedules are needed.
+          </li>
+        </ol>
+      </div>
+
+      <div class="mt-8 pt-6 border-t border-[#e5e2dc] font-sans-ui text-sm text-slate-500 flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <a href="softmax_cross_entropy_loss_notes.html" class="text-blue-700 hover:underline font-medium">&larr; Part II: Softmax &amp; Cross-Entropy Loss</a>
+        </div>
+        <div>
+          <a href="index.html" class="text-blue-700 hover:underline font-medium">All Notes &rarr;</a>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="border-t border-[#e5e2dc] bg-[#faf9f5] py-8 font-sans-ui text-xs text-slate-500">
+    <div class="max-w-5xl mx-auto px-5 sm:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div>
+        <span>Deep Learning Fundamentals</span> &middot; Visual Study Notes
+      </div>
+      <div class="flex items-center gap-4">
+        <a href="information_entropy_cross_entropy_notes.html" class="hover:text-slate-800 transition">Part I: Information Theory</a>
+        <a href="softmax_cross_entropy_loss_notes.html" class="hover:text-slate-800 transition">Part II: Softmax &amp; Loss</a>
+        <a href="sgd_batch_size_noise_notes.html" class="hover:text-slate-800 transition font-medium text-blue-700">Part III: SGD &amp; Batch Size</a>
+        <a href="https://github.com/imprashant998/deep-learning-fundamentals" target="_blank" rel="noopener noreferrer" class="hover:text-slate-800 transition">GitHub</a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ================================================================ -->
+  <!--  JAVASCRIPT — Interactive Visualizations                         -->
+  <!-- ================================================================ -->
+  <script>
+    // ========== KaTeX Auto Render ==========
+    document.addEventListener("DOMContentLoaded", function() {
+      renderMathInElement(document.body, {
+        delimiters: [
+          { left: "$$", right: "$$", display: true },
+          { left: "$", right: "$", display: false }
+        ],
+        throwOnError: false
+      });
+    });
+
+    // ========== Smooth scroll for nav buttons ==========
+    document.querySelectorAll('.nav-jump').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const target = document.getElementById(btn.dataset.scroll);
+        if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    });
+
+    // ========== Practice Problem Toggles ==========
+    function toggleAnswer(id) {
+      const el = document.getElementById(id + '-answer');
+      el.classList.toggle('show');
+    }
+    function toggleHint(id) {
+      const el = document.getElementById(id + '-hint');
+      el.classList.toggle('show');
+    }
+
+    // ========== CHART 1: Noise vs Batch Size ==========
+    (function() {
+      const canvas = document.getElementById('noise-chart');
+      const ctx = canvas.getContext('2d');
+      const sigmaSlider = document.getElementById('sigma-slider');
+      const sigmaVal = document.getElementById('sigma-val');
+
+      function resizeCanvas() {
+        const rect = canvas.parentElement.getBoundingClientRect();
+        canvas.width = rect.width - 48;
+        canvas.height = 300;
+      }
+      resizeCanvas();
+      window.addEventListener('resize', () => { resizeCanvas(); drawNoiseChart(); });
+
+      function drawNoiseChart() {
+        const sigma = parseFloat(sigmaSlider.value);
+        sigmaVal.textContent = sigma.toFixed(1);
+        const W = canvas.width, H = canvas.height;
+        const pad = { top: 30, right: 30, bottom: 50, left: 60 };
+        const plotW = W - pad.left - pad.right;
+        const plotH = H - pad.top - pad.bottom;
+
+        ctx.clearRect(0, 0, W, H);
+
+        // Axes
+        ctx.strokeStyle = '#cbd5e1';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(pad.left, pad.top);
+        ctx.lineTo(pad.left, H - pad.bottom);
+        ctx.lineTo(W - pad.right, H - pad.bottom);
+        ctx.stroke();
+
+        // Data
+        const batchSizes = [];
+        for (let b = 1; b <= 512; b += 1) batchSizes.push(b);
+
+        const maxSd = sigma; // at B=1
+        const maxCost = 512;
+
+        // Draw SD curve (blue)
+        ctx.beginPath();
+        ctx.strokeStyle = '#2563eb';
+        ctx.lineWidth = 2.5;
+        for (let i = 0; i < batchSizes.length; i++) {
+          const b = batchSizes[i];
+          const sd = sigma / Math.sqrt(b);
+          const x = pad.left + (b / maxCost) * plotW;
+          const y = pad.top + plotH - (sd / maxSd) * plotH;
+          if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+
+        // Draw cost line (rose)
+        ctx.beginPath();
+        ctx.strokeStyle = '#e11d48';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([6, 4]);
+        const costY1 = pad.top + plotH - (1 / maxCost) * plotH;
+        const costY2 = pad.top + plotH - 1 * plotH;
+        ctx.moveTo(pad.left + (1 / maxCost) * plotW, pad.top + plotH);
+        ctx.lineTo(pad.left + plotW, pad.top);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Key batch sizes markers
+        const keyBatches = [1, 4, 16, 32, 64, 128, 256, 512];
+        keyBatches.forEach(b => {
+          const sd = sigma / Math.sqrt(b);
+          const x = pad.left + (b / maxCost) * plotW;
+          const y = pad.top + plotH - (sd / maxSd) * plotH;
+          ctx.fillStyle = '#2563eb';
+          ctx.beginPath();
+          ctx.arc(x, y, 4, 0, Math.PI * 2);
+          ctx.fill();
+          // Label a few key ones
+          if ([1, 32, 128, 512].includes(b)) {
+            ctx.fillStyle = '#475569';
+            ctx.font = '11px Inter, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(`B=${b}`, x, y - 10);
+            ctx.fillText(`sd=${sd.toFixed(2)}`, x, y - 22);
+          }
+        });
+
+        // X axis label
+        ctx.fillStyle = '#64748b';
+        ctx.font = '13px Inter, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('Batch Size (B)', pad.left + plotW / 2, H - 8);
+
+        // Y axis label
+        ctx.save();
+        ctx.translate(14, pad.top + plotH / 2);
+        ctx.rotate(-Math.PI / 2);
+        ctx.fillText('sd(ĝ_B) / Compute', 0, 0);
+        ctx.restore();
+
+        // Tick marks
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '10px JetBrains Mono, monospace';
+        ctx.textAlign = 'center';
+        [1, 64, 128, 256, 384, 512].forEach(b => {
+          const x = pad.left + (b / maxCost) * plotW;
+          ctx.fillText(b, x, H - pad.bottom + 16);
+          ctx.strokeStyle = '#e2e8f0';
+          ctx.lineWidth = 0.5;
+          ctx.beginPath();
+          ctx.moveTo(x, pad.top);
+          ctx.lineTo(x, H - pad.bottom);
+          ctx.stroke();
+        });
+      }
+
+      sigmaSlider.addEventListener('input', drawNoiseChart);
+      drawNoiseChart();
+    })();
+
+    // ========== CHART 2: Scatter Plot ==========
+    (function() {
+      const canvas = document.getElementById('scatter-chart');
+      const ctx = canvas.getContext('2d');
+      const batchSlider = document.getElementById('batch-slider');
+      const batchVal = document.getElementById('batch-val');
+      const resampleBtn = document.getElementById('resample-btn');
+      const scatterSd = document.getElementById('scatter-sd');
+      const scatterVar = document.getElementById('scatter-var');
+      const sigma = 2.0;
+      const trueGrad = [0, 0]; // center
+
+      function resizeCanvas() {
+        const rect = canvas.parentElement.getBoundingClientRect();
+        canvas.width = rect.width - 48;
+        canvas.height = 360;
+      }
+      resizeCanvas();
+
+      function randn() {
+        let u = 0, v = 0;
+        while (u === 0) u = Math.random();
+        while (v === 0) v = Math.random();
+        return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+      }
+
+      function drawScatter() {
+        const B = parseInt(batchSlider.value);
+        batchVal.textContent = B;
+        const W = canvas.width, H = canvas.height;
+        const cx = W / 2, cy = H / 2;
+        const scale = Math.min(W, H) / 6;
+
+        ctx.clearRect(0, 0, W, H);
+
+        // Grid
+        ctx.strokeStyle = '#f1f5f9';
+        ctx.lineWidth = 1;
+        for (let i = -3; i <= 3; i++) {
+          ctx.beginPath();
+          ctx.moveTo(cx + i * scale, 0);
+          ctx.lineTo(cx + i * scale, H);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(0, cy + i * scale);
+          ctx.lineTo(W, cy + i * scale);
+          ctx.stroke();
+        }
+
+        // Axes
+        ctx.strokeStyle = '#cbd5e1';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(0, cy);
+        ctx.lineTo(W, cy);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(cx, 0);
+        ctx.lineTo(cx, H);
+        ctx.stroke();
+
+        // SD circle
+        const sdVal = sigma / Math.sqrt(B);
+        const sdPx = sdVal * scale;
+        ctx.strokeStyle = 'rgba(37, 99, 235, 0.25)';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([6, 4]);
+        ctx.beginPath();
+        ctx.arc(cx, cy, sdPx, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(cx, cy, sdPx * 2, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // SD labels
+        ctx.fillStyle = 'rgba(37, 99, 235, 0.5)';
+        ctx.font = '10px Inter, sans-serif';
+        ctx.fillText('1σ', cx + sdPx + 4, cy - 4);
+        ctx.fillText('2σ', cx + sdPx * 2 + 4, cy - 4);
+
+        // Generate samples
+        const numSamples = 200;
+        const samples = [];
+        for (let i = 0; i < numSamples; i++) {
+          // Each minibatch gradient is average of B per-example gradients
+          let sx = 0, sy = 0;
+          for (let j = 0; j < B; j++) {
+            sx += randn() * sigma;
+            sy += randn() * sigma;
+          }
+          sx /= B; sy /= B;
+          samples.push([sx, sy]);
+        }
+
+        // Draw samples
+        ctx.globalAlpha = 0.5;
+        samples.forEach(([sx, sy]) => {
+          const px = cx + sx * scale;
+          const py = cy - sy * scale;
+          ctx.fillStyle = '#3b82f6';
+          ctx.beginPath();
+          ctx.arc(px, py, 3, 0, Math.PI * 2);
+          ctx.fill();
+        });
+        ctx.globalAlpha = 1;
+
+        // True gradient marker
+        ctx.strokeStyle = '#e11d48';
+        ctx.lineWidth = 2.5;
+        const crossSize = 10;
+        ctx.beginPath();
+        ctx.moveTo(cx - crossSize, cy - crossSize);
+        ctx.lineTo(cx + crossSize, cy + crossSize);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(cx + crossSize, cy - crossSize);
+        ctx.lineTo(cx - crossSize, cy + crossSize);
+        ctx.stroke();
+        ctx.fillStyle = '#e11d48';
+        ctx.font = '11px Inter, sans-serif';
+        ctx.fillText('True g', cx + crossSize + 4, cy - crossSize);
+
+        // Update stats
+        scatterSd.textContent = sdVal.toFixed(3);
+        scatterVar.textContent = (sdVal * sdVal).toFixed(3);
+      }
+
+      batchSlider.addEventListener('input', drawScatter);
+      resampleBtn.addEventListener('click', drawScatter);
+      window.addEventListener('resize', () => { resizeCanvas(); drawScatter(); });
+      drawScatter();
+    })();
+
+    // ========== CHART 3: Loss Landscape (Sharp vs Flat) ==========
+    (function() {
+      const canvas = document.getElementById('landscape-chart');
+      const ctx = canvas.getContext('2d');
+      const noiseSlider = document.getElementById('landscape-noise-slider');
+      const noiseVal = document.getElementById('landscape-noise-val');
+      const restartBtn = document.getElementById('landscape-restart-btn');
+
+      function resizeCanvas() {
+        const rect = canvas.parentElement.getBoundingClientRect();
+        canvas.width = rect.width - 48;
+        canvas.height = 320;
+      }
+      resizeCanvas();
+
+      // Loss landscape function: combination of sharp and flat minima
+      function lossAt(x) {
+        // Sharp minimum at x≈0.22, flat minimum at x≈0.72
+        const sharp = 3.0 * Math.exp(-((x - 0.22) * 16) * ((x - 0.22) * 16)) * -1;
+        const flat = 1.2 * Math.exp(-((x - 0.72) * 4) * ((x - 0.72) * 4)) * -1;
+        const base = 0.3 * Math.sin(x * 3) + 2.0;
+        return base + sharp + flat;
+      }
+
+      function lossGrad(x) {
+        const eps = 0.001;
+        return (lossAt(x + eps) - lossAt(x - eps)) / (2 * eps);
+      }
+
+      let animPath = [];
+      let animFrame = null;
+      let currentX = 0.22;
+      let stepCount = 0;
+
+      function drawLandscape() {
+        const noise = parseFloat(noiseSlider.value);
+        noiseVal.textContent = noise.toFixed(2);
+        const W = canvas.width, H = canvas.height;
+        const pad = { top: 30, right: 20, bottom: 40, left: 20 };
+        const plotW = W - pad.left - pad.right;
+        const plotH = H - pad.top - pad.bottom;
+
+        ctx.clearRect(0, 0, W, H);
+
+        // Compute loss values
+        const numPts = 400;
+        let minL = Infinity, maxL = -Infinity;
+        const losses = [];
+        for (let i = 0; i <= numPts; i++) {
+          const x = i / numPts;
+          const l = lossAt(x);
+          losses.push(l);
+          minL = Math.min(minL, l);
+          maxL = Math.max(maxL, l);
+        }
+        const range = maxL - minL || 1;
+
+        // Draw filled landscape
+        ctx.beginPath();
+        ctx.moveTo(pad.left, H - pad.bottom);
+        for (let i = 0; i <= numPts; i++) {
+          const px = pad.left + (i / numPts) * plotW;
+          const py = pad.top + (1 - (losses[i] - minL) / range) * plotH;
+          ctx.lineTo(px, py);
+        }
+        ctx.lineTo(pad.left + plotW, H - pad.bottom);
+        ctx.closePath();
+        const grad = ctx.createLinearGradient(0, pad.top, 0, H - pad.bottom);
+        grad.addColorStop(0, 'rgba(203, 213, 225, 0.4)');
+        grad.addColorStop(1, 'rgba(241, 245, 249, 0.1)');
+        ctx.fillStyle = grad;
+        ctx.fill();
+
+        // Draw loss curve
+        ctx.beginPath();
+        ctx.strokeStyle = '#475569';
+        ctx.lineWidth = 2;
+        for (let i = 0; i <= numPts; i++) {
+          const px = pad.left + (i / numPts) * plotW;
+          const py = pad.top + (1 - (losses[i] - minL) / range) * plotH;
+          if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+        }
+        ctx.stroke();
+
+        // Mark minima regions
+        // Sharp minimum label
+        const sharpX = 0.22;
+        const sharpPx = pad.left + sharpX * plotW;
+        const sharpPy = pad.top + (1 - (lossAt(sharpX) - minL) / range) * plotH;
+        ctx.fillStyle = '#e11d48';
+        ctx.beginPath();
+        ctx.arc(sharpPx, sharpPy, 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#e11d48';
+        ctx.font = 'bold 11px Inter, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('Sharp', sharpPx, sharpPy + 18);
+        ctx.fillText('Minimum', sharpPx, sharpPy + 30);
+
+        // Flat minimum label
+        const flatX = 0.72;
+        const flatPx = pad.left + flatX * plotW;
+        const flatPy = pad.top + (1 - (lossAt(flatX) - minL) / range) * plotH;
+        ctx.fillStyle = '#0d9488';
+        ctx.beginPath();
+        ctx.arc(flatPx, flatPy, 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#0d9488';
+        ctx.font = 'bold 11px Inter, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('Flat', flatPx, flatPy + 18);
+        ctx.fillText('Minimum', flatPx, flatPy + 30);
+
+        // Draw path history
+        if (animPath.length > 1) {
+          ctx.beginPath();
+          ctx.strokeStyle = 'rgba(37, 99, 235, 0.4)';
+          ctx.lineWidth = 1.5;
+          for (let i = 0; i < animPath.length; i++) {
+            const px = pad.left + animPath[i] * plotW;
+            const py = pad.top + (1 - (lossAt(animPath[i]) - minL) / range) * plotH;
+            if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+          }
+          ctx.stroke();
+        }
+
+        // Draw current position
+        if (animPath.length > 0) {
+          const lastX = animPath[animPath.length - 1];
+          const lastPx = pad.left + lastX * plotW;
+          const lastPy = pad.top + (1 - (lossAt(lastX) - minL) / range) * plotH;
+          ctx.fillStyle = '#2563eb';
+          ctx.beginPath();
+          ctx.arc(lastPx, lastPy, 6, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        }
+
+        // X axis label
+        ctx.fillStyle = '#64748b';
+        ctx.font = '12px Inter, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('Parameter θ', pad.left + plotW / 2, H - 6);
+      }
+
+      function randn() {
+        let u = 0, v = 0;
+        while (u === 0) u = Math.random();
+        while (v === 0) v = Math.random();
+        return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+      }
+
+      function step() {
+        const noise = parseFloat(noiseSlider.value);
+        const lr = 0.003;
+        const grad = lossGrad(currentX);
+        currentX = currentX - lr * grad + noise * randn() * 0.02;
+        currentX = Math.max(0.02, Math.min(0.98, currentX));
+        animPath.push(currentX);
+        if (animPath.length > 600) animPath.shift();
+        drawLandscape();
+        stepCount++;
+        if (stepCount < 3000) {
+          animFrame = requestAnimationFrame(step);
+        }
+      }
+
+      function startAnim() {
+        if (animFrame) cancelAnimationFrame(animFrame);
+        currentX = 0.22;
+        animPath = [currentX];
+        stepCount = 0;
+        step();
+      }
+
+      noiseSlider.addEventListener('input', () => {
+        noiseVal.textContent = parseFloat(noiseSlider.value).toFixed(2);
+      });
+      restartBtn.addEventListener('click', startAnim);
+      window.addEventListener('resize', () => { resizeCanvas(); drawLandscape(); });
+      startAnim();
+    })();
+
+    // ========== CHART 4: Summary Chart ==========
+    (function() {
+      const canvas = document.getElementById('summary-chart');
+      const ctx = canvas.getContext('2d');
+
+      function resizeCanvas() {
+        const rect = canvas.parentElement.getBoundingClientRect();
+        canvas.width = rect.width - 48;
+        canvas.height = 260;
+      }
+      resizeCanvas();
+
+      function drawSummary() {
+        const W = canvas.width, H = canvas.height;
+        const pad = { top: 30, right: 30, bottom: 50, left: 50 };
+        const plotW = W - pad.left - pad.right;
+        const plotH = H - pad.top - pad.bottom;
+
+        ctx.clearRect(0, 0, W, H);
+
+        // Axes
+        ctx.strokeStyle = '#cbd5e1';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(pad.left, pad.top);
+        ctx.lineTo(pad.left, H - pad.bottom);
+        ctx.lineTo(W - pad.right, H - pad.bottom);
+        ctx.stroke();
+
+        const numPts = 200;
+
+        // Noise curve (blue) - 1/sqrt(B), normalized
+        ctx.beginPath();
+        ctx.strokeStyle = '#2563eb';
+        ctx.lineWidth = 2.5;
+        for (let i = 0; i < numPts; i++) {
+          const t = (i + 1) / numPts; // 0..1 representing B from 1 to 512
+          const b = 1 + t * 511;
+          const noise = 1 / Math.sqrt(b); // normalized
+          const x = pad.left + t * plotW;
+          const y = pad.top + plotH - noise * plotH;
+          if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+
+        // Generalization curve (teal) - peaks around B=64-128
+        ctx.beginPath();
+        ctx.strokeStyle = '#0d9488';
+        ctx.lineWidth = 2.5;
+        for (let i = 0; i < numPts; i++) {
+          const t = (i + 1) / numPts;
+          const b = 1 + t * 511;
+          const logB = Math.log2(b);
+          // Bell-shaped curve peaking around B=64 (logB ≈ 6)
+          const gen = Math.exp(-0.15 * (logB - 6) * (logB - 6));
+          const x = pad.left + t * plotW;
+          const y = pad.top + plotH - gen * plotH;
+          if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+
+        // Compute efficiency curve (amber) - ramps up then plateaus
+        ctx.beginPath();
+        ctx.strokeStyle = '#d97706';
+        ctx.lineWidth = 2.5;
+        for (let i = 0; i < numPts; i++) {
+          const t = (i + 1) / numPts;
+          const b = 1 + t * 511;
+          const logB = Math.log2(b);
+          // Sigmoid-like ramp, saturates around B=128
+          const eff = 1 / (1 + Math.exp(-1.2 * (logB - 5)));
+          const x = pad.left + t * plotW;
+          const y = pad.top + plotH - eff * plotH;
+          if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+
+        // Sweet spot region
+        const sweetLeft = pad.left + ((32 - 1) / 511) * plotW;
+        const sweetRight = pad.left + ((512 - 1) / 511) * plotW;
+        ctx.fillStyle = 'rgba(37, 99, 235, 0.06)';
+        ctx.fillRect(sweetLeft, pad.top, sweetRight - sweetLeft, plotH);
+        ctx.strokeStyle = 'rgba(37, 99, 235, 0.2)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 4]);
+        ctx.strokeRect(sweetLeft, pad.top, sweetRight - sweetLeft, plotH);
+        ctx.setLineDash([]);
+        ctx.fillStyle = '#2563eb';
+        ctx.font = 'bold 11px Inter, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('Sweet Spot', (sweetLeft + sweetRight) / 2, pad.top + 16);
+        ctx.fillText('B ∈ [32, 512]', (sweetLeft + sweetRight) / 2, pad.top + 30);
+
+        // X axis
+        ctx.fillStyle = '#64748b';
+        ctx.font = '12px Inter, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('Batch Size (B) →', pad.left + plotW / 2, H - 8);
+
+        // Tick marks
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '10px JetBrains Mono, monospace';
+        [1, 32, 64, 128, 256, 512].forEach(b => {
+          const x = pad.left + ((b - 1) / 511) * plotW;
+          ctx.textAlign = 'center';
+          ctx.fillText(b, x, H - pad.bottom + 16);
+        });
+
+        // Y axis label
+        ctx.save();
+        ctx.fillStyle = '#64748b';
+        ctx.font = '12px Inter, sans-serif';
+        ctx.translate(14, pad.top + plotH / 2);
+        ctx.rotate(-Math.PI / 2);
+        ctx.textAlign = 'center';
+        ctx.fillText('Relative Magnitude', 0, 0);
+        ctx.restore();
+      }
+
+      window.addEventListener('resize', () => { resizeCanvas(); drawSummary(); });
+      drawSummary();
+    })();
+  </script>
+
+</body>
+</html>
