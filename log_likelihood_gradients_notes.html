@@ -1,0 +1,2624 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Log-Likelihood Gradients — Bernoulli, Gaussian, and Softmax Losses</title>
+  <meta name="description" content="A detailed, visual walkthrough of log-likelihood gradients: why NLL is the training objective, how the score function works, and why logistic, Gaussian, and softmax losses all reduce to simple residuals.">
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
+  <style>
+    :root {
+      --bg-paper: #faf9f5;
+      --bg-card: #ffffff;
+      --ink-primary: #1e242b;
+      --ink-secondary: #4a5568;
+      --ink-muted: #718096;
+      --accent-blue: #2b6cb0;
+      --accent-teal: #0d9488;
+      --accent-amber: #d97706;
+      --accent-rose: #e11d48;
+      --border-subtle: #e5e2dc;
+    }
+    body {
+      background-color: var(--bg-paper);
+      color: var(--ink-primary);
+      font-family: 'Newsreader', Georgia, Cambria, "Times New Roman", Times, serif;
+      font-size: 1.15rem;
+      line-height: 1.78;
+      -webkit-font-smoothing: antialiased;
+    }
+    .font-sans-ui {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    .font-mono-code {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .math-block {
+      background: #ffffff;
+      border: 1px solid #e6e4dd;
+      border-left: 4px solid #2b6cb0;
+      border-radius: 0.5rem;
+      padding: 1.1rem 1.4rem;
+      margin: 1.5rem 0;
+      overflow-x: auto;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+    }
+    .math-block-teal {
+      background: #ffffff;
+      border: 1px solid #d1e7e4;
+      border-left: 4px solid #0d9488;
+      border-radius: 0.5rem;
+      padding: 1.1rem 1.4rem;
+      margin: 1.5rem 0;
+      overflow-x: auto;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+    }
+    .math-block-amber {
+      background: #ffffff;
+      border: 1px solid #f3e8d0;
+      border-left: 4px solid #d97706;
+      border-radius: 0.5rem;
+      padding: 1.1rem 1.4rem;
+      margin: 1.5rem 0;
+      overflow-x: auto;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+    }
+    .math-block-rose {
+      background: #ffffff;
+      border: 1px solid #f5d5dc;
+      border-left: 4px solid #e11d48;
+      border-radius: 0.5rem;
+      padding: 1.1rem 1.4rem;
+      margin: 1.5rem 0;
+      overflow-x: auto;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+    }
+    .olah-callout {
+      background: #f3f6fa;
+      border: 1px solid #d8e2ef;
+      border-radius: 0.6rem;
+      padding: 1.25rem 1.5rem;
+      margin: 1.75rem 0;
+    }
+    .olah-callout-teal {
+      background: #f0fdf9;
+      border: 1px solid #c6ede5;
+      border-radius: 0.6rem;
+      padding: 1.25rem 1.5rem;
+      margin: 1.75rem 0;
+    }
+    .olah-callout-amber {
+      background: #fffbeb;
+      border: 1px solid #f3e2b3;
+      border-radius: 0.6rem;
+      padding: 1.25rem 1.5rem;
+      margin: 1.75rem 0;
+    }
+    .olah-callout-rose {
+      background: #fff5f7;
+      border: 1px solid #f5d0d8;
+      border-radius: 0.6rem;
+      padding: 1.25rem 1.5rem;
+      margin: 1.75rem 0;
+    }
+    .katex-display {
+      margin: 0.35rem 0 !important;
+    }
+    .katex {
+      font-size: 1.06em !important;
+    }
+    table.olah-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.92rem;
+      line-height: 1.5;
+    }
+    table.olah-table th {
+      background-color: #f4f2ec;
+      color: #2d3748;
+      font-weight: 600;
+      text-align: left;
+      padding: 0.75rem 1rem;
+      border-bottom: 2px solid #d6d3c9;
+    }
+    table.olah-table td {
+      padding: 0.7rem 1rem;
+      border-bottom: 1px solid #e8e5dc;
+      vertical-align: top;
+    }
+    table.olah-table tr:last-child td {
+      border-bottom: none;
+    }
+    input[type="range"] {
+      accent-color: #2b6cb0;
+    }
+    .practice-card {
+      background: #ffffff;
+      border: 1px solid #e5e2dc;
+      border-radius: 0.75rem;
+      padding: 1.5rem;
+      margin: 1.25rem 0;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+    }
+    .practice-card .answer-reveal {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.4s ease, opacity 0.3s ease;
+      opacity: 0;
+    }
+    .practice-card .answer-reveal.show {
+      max-height: 1200px;
+      opacity: 1;
+    }
+    .practice-card .hint-reveal {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.35s ease, opacity 0.3s ease;
+      opacity: 0;
+    }
+    .practice-card .hint-reveal.show {
+      max-height: 400px;
+      opacity: 1;
+    }
+    .deriv-step {
+      background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+      border: 1px solid #e2e8f0;
+      border-radius: 0.5rem;
+      padding: 1rem 1.25rem;
+      margin: 0.75rem 0;
+    }
+    .deriv-step-highlight {
+      background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+      border: 1px solid #bfdbfe;
+      border-radius: 0.5rem;
+      padding: 1rem 1.25rem;
+      margin: 0.75rem 0;
+    }
+    .lab-card {
+      background: #ffffff;
+      border: 1px solid #e5e2dc;
+      border-radius: 0.9rem;
+      padding: 1.5rem;
+      margin: 1.75rem 0;
+      box-shadow: 0 4px 18px -8px rgba(15, 23, 42, 0.12);
+    }
+    .metric-card {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 0.5rem;
+      padding: 0.65rem 0.8rem;
+    }
+    .metric-label {
+      font-family: 'Inter', sans-serif;
+      font-size: 0.62rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #64748b;
+      font-weight: 600;
+      line-height: 1.3;
+    }
+    .metric-value {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1.05rem;
+      color: #0f172a;
+      line-height: 1.35;
+    }
+    .toggle-btn {
+      font-family: 'Inter', sans-serif;
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 0.38rem 0.7rem;
+      border: 1px solid #cbd5e1;
+      border-radius: 0.4rem;
+      color: #475569;
+      background: #fff;
+      transition: all 0.15s ease;
+    }
+    .toggle-btn:hover {
+      background: #f1f5f9;
+    }
+    .toggle-btn.active {
+      background: #2b6cb0;
+      border-color: #2b6cb0;
+      color: #fff;
+    }
+    .preset-btn {
+      font-family: 'Inter', sans-serif;
+      font-size: 0.68rem;
+      font-weight: 500;
+      padding: 0.3rem 0.55rem;
+      border: 1px solid #e2e8f0;
+      border-radius: 999px;
+      color: #475569;
+      background: #f8fafc;
+      transition: all 0.15s ease;
+    }
+    .preset-btn:hover {
+      background: #e2e8f0;
+      color: #1e293b;
+    }
+    .code-block {
+      background: #0f172a;
+      color: #e2e8f0;
+      border-radius: 0.6rem;
+      padding: 1rem 1.15rem;
+      margin: 1.25rem 0;
+      overflow-x: auto;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.78rem;
+      line-height: 1.65;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+    .code-block .comment {
+      color: #94a3b8;
+    }
+    .code-block .kw {
+      color: #93c5fd;
+    }
+    .code-block .fn {
+      color: #5eead4;
+    }
+    .plot-axis {
+      stroke: #cbd5e1;
+      stroke-width: 1;
+    }
+    .plot-grid {
+      stroke: #e2e8f0;
+      stroke-width: 1;
+      stroke-dasharray: 3 3;
+    }
+    .plot-label {
+      font-family: 'Inter', sans-serif;
+      font-size: 10px;
+      fill: #64748b;
+    }
+    .plot-label-bold {
+      font-family: 'Inter', sans-serif;
+      font-size: 10px;
+      font-weight: 600;
+      fill: #475569;
+    }
+    .tag-chip {
+      font-family: 'Inter', sans-serif;
+      font-size: 0.68rem;
+      font-weight: 500;
+      background: #f1f5f9;
+      color: #475569;
+      padding: 0.2rem 0.55rem;
+      border-radius: 999px;
+      display: inline-block;
+    }
+    .mini-key {
+      display: inline-block;
+      width: 0.65rem;
+      height: 0.65rem;
+      border-radius: 2px;
+      margin-right: 0.3rem;
+      vertical-align: -1px;
+    }
+  </style>
+</head>
+<body class="min-h-screen selection:bg-blue-100 selection:text-blue-900">
+
+  <!-- Sticky header -->
+  <header class="border-b border-[#e5e2dc] bg-[#faf9f5]/95 backdrop-blur sticky top-0 z-30">
+    <div class="max-w-5xl mx-auto px-4 sm:px-8 py-3 flex flex-wrap items-center justify-between gap-2 font-sans-ui">
+      <div class="flex items-center gap-2.5">
+        <span class="w-2.5 h-2.5 rounded-full bg-rose-600 inline-block"></span>
+        <span class="text-xs font-semibold tracking-wider uppercase text-slate-600">Deep Learning Foundations</span>
+        <span class="text-slate-300">|</span>
+        <span class="text-xs text-rose-700 font-medium">Part IV: Log-Likelihood Gradients</span>
+      </div>
+      <nav class="flex flex-wrap items-center gap-1 sm:gap-1.5 text-xs">
+        <button type="button" data-scroll="sec-1" class="nav-jump px-2 py-1 rounded hover:bg-slate-200/70 text-slate-700 font-medium transition">1. Likelihood</button>
+        <button type="button" data-scroll="sec-2" class="nav-jump px-2 py-1 rounded hover:bg-slate-200/70 text-slate-700 font-medium transition">2. Score</button>
+        <button type="button" data-scroll="sec-3" class="nav-jump px-2 py-1 rounded hover:bg-slate-200/70 text-slate-700 font-medium transition">3. Logistic</button>
+        <button type="button" data-scroll="sec-4" class="nav-jump px-2 py-1 rounded hover:bg-slate-200/70 text-slate-700 font-medium transition">4. Lab</button>
+        <button type="button" data-scroll="sec-5" class="nav-jump px-2 py-1 rounded hover:bg-slate-200/70 text-slate-700 font-medium transition">5. Gaussian</button>
+        <button type="button" data-scroll="sec-6" class="nav-jump px-2 py-1 rounded hover:bg-slate-200/70 text-slate-700 font-medium transition">6. Softmax</button>
+        <button type="button" data-scroll="sec-7" class="nav-jump px-2 py-1 rounded hover:bg-slate-200/70 text-slate-700 font-medium transition">7. Unified</button>
+        <button type="button" data-scroll="sec-8" class="nav-jump px-2 py-1 rounded hover:bg-slate-200/70 text-slate-700 font-medium transition">8. Stability</button>
+        <button type="button" data-scroll="sec-9" class="nav-jump px-2 py-1 rounded hover:bg-slate-200/70 text-slate-700 font-medium transition">9. Practice</button>
+        <button type="button" data-scroll="sec-10" class="nav-jump px-2 py-1 rounded hover:bg-slate-200/70 text-slate-700 font-medium transition">10. Summary</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="max-w-3xl mx-auto px-5 sm:px-8 pt-10 pb-24">
+
+    <!-- Title banner -->
+    <div class="border-b border-[#e5e2dc] pb-8 mb-10">
+      <div class="font-sans-ui text-xs font-semibold uppercase tracking-widest text-rose-800 mb-3">
+        Deep Learning Foundations &middot; Probabilistic Losses
+      </div>
+      <h1 class="font-sans-ui text-3xl sm:text-4xl font-bold tracking-tight text-slate-900 leading-tight mb-4">
+        Log-Likelihood Gradients: The One Pattern Behind Logistic, Gaussian, and Softmax Losses
+      </h1>
+      <p class="text-lg text-slate-600 italic mb-5">
+        Why does binary cross-entropy give $\partial L/\partial z = p-y$, a Gaussian give $\partial L/\partial \mu = (\mu-x)/\sigma^2$, and softmax cross-entropy give $\partial L/\partial z = q-y$? They look like three separate formulas. They are three dialects of one sentence: move the prediction toward what you observed, scaled by the precision of the model.
+      </p>
+      <div class="font-sans-ui text-xs text-slate-500 flex flex-wrap items-center gap-x-4 gap-y-2 pt-2">
+        <div>
+          <strong class="text-slate-700">Prerequisites:</strong>
+          <a href="./information_entropy_cross_entropy_notes.html" class="text-blue-700 hover:underline">Part I &mdash; Information &amp; Cross-Entropy</a>,
+          <a href="./softmax_cross_entropy_loss_notes.html" class="text-blue-700 hover:underline">Part II &mdash; Softmax &amp; Cross-Entropy</a>
+        </div>
+        <div>
+          <strong class="text-slate-700">Builds on:</strong>
+          <a href="./sgd_batch_size_noise_notes.html" class="text-blue-700 hover:underline">Part III &mdash; SGD &amp; Batch Size</a>
+        </div>
+      </div>
+      <div class="flex flex-wrap gap-1.5 mt-4 font-sans-ui">
+        <span class="tag-chip">Maximum likelihood</span>
+        <span class="tag-chip">Score function</span>
+        <span class="tag-chip">Bernoulli / logistic</span>
+        <span class="tag-chip">Gaussian NLL</span>
+        <span class="tag-chip">Categorical / softmax</span>
+        <span class="tag-chip">Interactive labs</span>
+      </div>
+    </div>
+
+    <!-- Opening hook -->
+    <section class="mb-12">
+      <p class="mb-4">
+        There is a moment in learning backpropagation when the formulas stop feeling arbitrary. You have already seen $\partial L/\partial z = p-y$ for logistic regression and $\partial L/\partial z_i = q_i-y_i$ for softmax. Then you meet a Gaussian loss and someone writes $\partial L/\partial \mu = (\mu-x)/\sigma^2$. It looks like a different species.
+      </p>
+      <p class="mb-4">
+        It is not. All three are the gradient of a <strong>negative log-likelihood</strong>, and all three are saying: <em>the direction of steepest descent is the gap between what the model expected and what actually happened.</em> The differences come from the coordinate system&mdash;probability, mean, or logit&mdash;and from how much precision the model assigns to its prediction.
+      </p>
+      <p class="mb-4">
+        In these notes we will build the whole story from the likelihood principle, derive each gradient slowly, compare the three losses side by side, and then implement them in a numerically stable way. There are two interactive labs: one for binary logistic regression and one for a Gaussian. By the end, you should be able to derive all three gradients from scratch and explain why they have the same shape.
+      </p>
+      <div class="olah-callout font-sans-ui text-sm text-slate-700">
+        <strong class="text-slate-900 block mb-1">The one-sentence preview</strong>
+        For a negative log-likelihood, the gradient with respect to the model's natural parameter is <strong>expected sufficient statistic minus observed sufficient statistic</strong>. For Bernoulli and categorical models that is $p-y$; for a Gaussian mean it is $\mu-x$ (then scaled by $1/\sigma^2$). Everything else is the chain rule.
+      </div>
+    </section>
+
+    <!-- SECTION 1 -->
+    <section id="sec-1" class="mb-14 scroll-mt-16">
+      <div class="flex items-center gap-2 font-sans-ui text-xs font-bold uppercase tracking-wider text-rose-800 mb-1">
+        <span>Section 01</span>
+        <span>&middot;</span>
+        <span class="text-slate-400">The objective</span>
+      </div>
+      <h2 class="font-sans-ui text-2xl font-bold text-slate-900 mb-4">
+        1. From Likelihood to Negative Log-Likelihood
+      </h2>
+
+      <p class="mb-4">
+        A probabilistic model does not output a single answer; it outputs a <strong>distribution</strong> over possible answers. For a classification problem, $p_\theta(y\mid x)$ is the probability the model assigns to label $y$ given input $x$. For a regression problem, $p_\theta(x\mid \mu,\sigma^2)$ is a density over real-valued targets. The parameter $\theta$ collects everything we are allowed to change: weights, biases, means, variances.
+      </p>
+      <p class="mb-4">
+        Suppose we observe a dataset $\mathcal{D}=\{x_1,\dots,x_N\}$ drawn independently from the same unknown distribution. The <strong>likelihood</strong> of the parameters is the probability (or density) the model assigns to the entire dataset:
+      </p>
+      <div class="math-block">
+        $$L(\theta) \;=\; p_\theta(x_1,\dots,x_N) \;=\; \prod_{i=1}^{N} p_\theta(x_i).$$
+      </div>
+      <p class="mb-4">
+        The product is the mathematical expression of independence: the probability of seeing all the data is the product of the per-example probabilities. In a supervised setting, replace $x_i$ by the pair $(x_i,y_i)$ and read $p_\theta(x_i,y_i)$ as $p_\theta(y_i\mid x_i)\,p(x_i)$; the input marginal does not depend on $\theta$, so it contributes a constant and drops out of the gradient.
+      </p>
+      <p class="mb-4">
+        The <strong>maximum likelihood estimate</strong> (MLE) is the parameter value that makes the observed data most probable:
+      </p>
+      <div class="math-block-teal">
+        $$\hat{\theta}_{\text{MLE}} \;=\; \arg\max_\theta \; L(\theta) \;=\; \arg\max_\theta \; \prod_{i=1}^{N} p_\theta(x_i).$$
+      </div>
+      <p class="mb-4">
+        In practice we never maximize the product directly. We maximize its logarithm instead. This is not an approximation: $\log$ is strictly increasing, so it preserves the location of the maximum. It changes the <em>geometry</em> of the objective, but not the answer.
+      </p>
+
+      <h3 class="font-sans-ui text-lg font-bold text-slate-800 mt-7 mb-3">
+        Why the logarithm is the right transformation
+      </h3>
+      <p class="mb-3">There are four reasons, and they all matter:</p>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 my-5 font-sans-ui text-sm">
+        <div class="bg-white border border-slate-200 rounded-lg p-4">
+          <div class="text-xs font-bold uppercase tracking-wider text-blue-700 mb-1">1. Same maximizer</div>
+          <p class="text-slate-600 text-xs leading-relaxed">$\log$ is monotone, so the $\theta$ that maximizes $L$ also maximizes $\log L$. No information about the optimum is lost.</p>
+        </div>
+        <div class="bg-white border border-slate-200 rounded-lg p-4">
+          <div class="text-xs font-bold uppercase tracking-wider text-blue-700 mb-1">2. Numerical survival</div>
+          <p class="text-slate-600 text-xs leading-relaxed">A product of thousands of probabilities underflows to zero in floating point. A sum of their logs stays in a reasonable range.</p>
+        </div>
+        <div class="bg-white border border-slate-200 rounded-lg p-4">
+          <div class="text-xs font-bold uppercase tracking-wider text-blue-700 mb-1">3. Calculus decomposes</div>
+          <p class="text-slate-600 text-xs leading-relaxed">The derivative of a sum is the sum of derivatives. The product rule would couple every example to every other example.</p>
+        </div>
+        <div class="bg-white border border-slate-200 rounded-lg p-4">
+          <div class="text-xs font-bold uppercase tracking-wider text-blue-700 mb-1">4. Information adds</div>
+          <p class="text-slate-600 text-xs leading-relaxed">$\log p$ is negative surprise. The log-likelihood of independent observations is the total surprise, which is additive.</p>
+        </div>
+      </div>
+
+      <p class="mb-4">
+        We therefore define the <strong>log-likelihood</strong> and the <strong>negative log-likelihood</strong> (NLL):
+      </p>
+      <div class="math-block">
+        $$\ell(\theta) \;=\; \log L(\theta) \;=\; \sum_{i=1}^{N} \log p_\theta(x_i),
+        \qquad
+        J(\theta) \;=\; -\ell(\theta) \;=\; -\sum_{i=1}^{N} \log p_\theta(x_i).$$
+      </div>
+      <p class="mb-4">
+        Minimizing $J$ is exactly maximizing $\ell$. The sign flip is a convention that turns "maximize likelihood" into the "minimize loss" language of optimization. Most libraries further divide by $N$ and report the <strong>mean</strong> NLL, so that the loss does not grow simply because the dataset is larger:
+      </p>
+      <div class="math-block-amber">
+        $$J_{\text{mean}}(\theta) \;=\; -\frac{1}{N}\sum_{i=1}^{N} \log p_\theta(x_i).$$
+      </div>
+      <p class="mb-4">
+        This distinction between sum and mean is not cosmetic. It changes the scale of the gradient by a factor of $N$, and therefore changes the learning rate you need. We will return to it in Section 8.
+      </p>
+
+      <h3 class="font-sans-ui text-lg font-bold text-slate-800 mt-7 mb-3">
+        A concrete MLE: the biased coin
+      </h3>
+      <p class="mb-4">
+        Flip a coin five times and observe three heads. Let $\theta$ be the probability of heads. The likelihood is $\theta^3(1-\theta)^2$, so
+      </p>
+      <div class="math-block">
+        $$\ell(\theta) = 3\log\theta + 2\log(1-\theta),
+        \qquad
+        \frac{d\ell}{d\theta} = \frac{3}{\theta} - \frac{2}{1-\theta}.$$
+      </div>
+      <p class="mb-4">
+        Setting the derivative to zero gives $3(1-\theta)=2\theta$, hence $\hat{\theta}=3/5=0.6$: the empirical frequency of heads. The second derivative is $-3/\theta^2-2/(1-\theta)^2&lt;0$, so this is a maximum. At $\theta=0.5$, the log-likelihood derivative is $3/0.5-2/0.5=2$, so the NLL derivative is $-2$: gradient descent would increase $\theta$ toward the data. This tiny example already contains the whole intuition of "the gradient points toward the observations."
+      </p>
+      <div class="olah-callout-teal font-sans-ui text-sm text-slate-700">
+        <strong class="text-teal-900 block mb-1">Likelihood is not a probability of $\theta$</strong>
+        $L(\theta)$ is a function of $\theta$ for fixed data. It is not the probability that $\theta$ is true. A Bayesian posterior would multiply the likelihood by a prior, $p(\theta\mid\mathcal{D})\propto p(\theta)L(\theta)$. The MLE is the special case of a flat prior, and L2 regularization will later turn out to be a Gaussian prior. Keep these three objects separate.
+      </div>
+    </section>
+
+    <!-- SECTION 2 -->
+    <section id="sec-2" class="mb-14 scroll-mt-16">
+      <div class="flex items-center gap-2 font-sans-ui text-xs font-bold uppercase tracking-wider text-rose-800 mb-1">
+        <span>Section 02</span>
+        <span>&middot;</span>
+        <span class="text-slate-400">The derivative</span>
+      </div>
+      <h2 class="font-sans-ui text-2xl font-bold text-slate-900 mb-4">
+        2. The Score Function: What Differentiating a Log-Likelihood Actually Means
+      </h2>
+
+      <p class="mb-4">
+        From here on we work in the <strong>loss-gradient</strong> language: $L(\theta)$ is the scalar objective we minimize, and every derivative below is $\partial L/\partial\theta$. (Section 1 called the same object $J$; the two names are interchangeable.) The likelihood story told us <em>which</em> loss to use. The rest is calculus.
+      </p>
+      <p class="mb-4">
+        Define the <strong>score function</strong> of a model at a single observation:
+      </p>
+      <div class="math-block">
+        $$s(\theta;x) \;=\; \nabla_\theta \log p_\theta(x).$$
+      </div>
+      <p class="mb-4">
+        The score is the gradient of the log-likelihood with respect to the parameters. The NLL gradient is simply its negative:
+      </p>
+      <div class="math-block-rose">
+        $$\nabla_\theta L(\theta) \;=\; -\,s(\theta;x).$$
+      </div>
+      <p class="mb-4">
+        This sign is worth tattooing somewhere: <strong>log-likelihood gradients point uphill; NLL gradients point downhill.</strong> For a Bernoulli model, the log-likelihood gradient with respect to the logit is $y-p$, and the NLL gradient is $p-y$. Almost every sign error in practice comes from mixing these two.
+      </p>
+
+      <h3 class="font-sans-ui text-lg font-bold text-slate-800 mt-7 mb-3">
+        A sanity check: the score averages to zero
+      </h3>
+      <p class="mb-4">
+        Because $p_\theta$ is a probability distribution, it integrates to one:
+      </p>
+      <div class="math-block">
+        $$\int p_\theta(x)\,dx = 1.$$
+      </div>
+      <p class="mb-4">
+        Differentiate both sides with respect to $\theta$ and use $\nabla_\theta p_\theta = p_\theta \nabla_\theta \log p_\theta$:
+      </p>
+      <div class="math-block">
+        $$0 = \int \nabla_\theta p_\theta(x)\,dx
+        = \int p_\theta(x)\,\nabla_\theta \log p_\theta(x)\,dx
+        = \mathbb{E}_{x\sim p_\theta}\big[s(\theta;x)\big].$$
+      </div>
+      <p class="mb-4">
+        So the score has mean zero under the model's own distribution. This is a powerful debugging identity: if you compute an average log-likelihood gradient over a large sample from the model and it is not close to zero, either your derivative is wrong or your sampling distribution is not the model's. It is the probabilistic analogue of checking that a force field has no net circulation.
+      </p>
+
+      <h3 class="font-sans-ui text-lg font-bold text-slate-800 mt-7 mb-3">
+        The loss-gradient viewpoint
+      </h3>
+      <p class="mb-4">
+        If you prefer to think in terms of loss functions, this is the bridge. The training objective is a scalar loss $L(\theta)$, and every formula below is a chain rule. The loss sees a <strong>prediction</strong>&mdash;a probability $p$, a probability vector $q$, or a mean $\mu$&mdash;and the prediction is produced from a logit or parameter by a link. So the gradient factors as:
+      </p>
+      <div class="math-block-teal">
+        $$\frac{\partial L}{\partial \eta}
+        \;=\;
+        \underbrace{\frac{\partial L}{\partial \text{prediction}}}_{\text{loss derivative}}
+        \;\cdot\;
+        \underbrace{\frac{\partial \text{prediction}}{\partial \eta}}_{\text{link derivative}}.$$
+      </div>
+      <p class="mb-4">
+        Here $\eta$ is the model's <strong>natural parameter</strong>: the logit $z$ for Bernoulli and categorical models, the mean $\mu$ for a Gaussian. For a vector prediction such as $q$, the link derivative is a Jacobian and the product is a sum over classes. The two factors individually look singular or complicated, but for the canonical pairings their product collapses to a simple residual:
+      </p>
+      <div class="bg-white border border-[#e5e2dc] rounded-lg overflow-hidden my-6 shadow-sm">
+        <table class="olah-table">
+          <thead>
+            <tr>
+              <th>Model</th>
+              <th>Prediction</th>
+              <th>Loss derivative wrt prediction</th>
+              <th>Link derivative</th>
+              <th>Result $\partial L/\partial\eta$</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="font-semibold text-slate-800">Bernoulli</td>
+              <td>$p=\sigma(z)$</td>
+              <td>$\frac{p-y}{p(1-p)}$</td>
+              <td>$\frac{\partial p}{\partial z}=p(1-p)$</td>
+              <td class="font-mono-code text-rose-700">$p-y$</td>
+            </tr>
+            <tr>
+              <td class="font-semibold text-slate-800">Gaussian (fixed $\sigma^2$)</td>
+              <td>$\mu$</td>
+              <td>$\frac{\mu-x}{\sigma^2}$</td>
+              <td>$1$ (identity link)</td>
+              <td class="font-mono-code text-rose-700">$(\mu-x)/\sigma^2$</td>
+            </tr>
+            <tr>
+              <td class="font-semibold text-slate-800">Categorical</td>
+              <td>$q=\operatorname{softmax}(z)$</td>
+              <td>$-\frac{y_k}{q_k}$ (componentwise)</td>
+              <td>$\frac{\partial q}{\partial z}$ (Jacobian)</td>
+              <td class="font-mono-code text-rose-700">$q-y$</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="mb-4">
+        The Bernoulli row is the most dramatic cancellation: the loss derivative blows up near $p=0$ or $p=1$, but the sigmoid derivative vanishes at exactly the same rate. Their product is bounded and well-behaved. This is not a lucky coincidence; it is a consequence of using the <strong>canonical link</strong> of an exponential family, which we will unpack in Section 7.
+      </p>
+      <div class="olah-callout-amber font-sans-ui text-sm text-slate-700">
+        <strong class="text-amber-900 block mb-1">The coordinate matters</strong>
+        The simple residual $p-y$ is the gradient with respect to the <strong>logit</strong> $z$, not with respect to the probability $p$. With respect to $p$, the gradient is $(p-y)/(p(1-p))$; the sigmoid derivative then converts it to $p-y$. The same distinction explains $q-y$: it is the gradient with respect to the logits, after the softmax Jacobian has been applied.
+      </div>
+
+      <h3 class="font-sans-ui text-lg font-bold text-slate-800 mt-7 mb-3">
+        Fisher information: the curvature of surprise
+      </h3>
+      <p class="mb-4">
+        The score also defines the <strong>Fisher information</strong>, the local curvature of the log-likelihood:
+      </p>
+      <div class="math-block">
+        $$\mathcal{I}(\theta)
+        = \mathbb{E}\big[s(\theta;x)s(\theta;x)^\top\big]
+        = -\,\mathbb{E}\big[\nabla_\theta^2 \log p_\theta(x)\big].$$
+      </div>
+      <p class="mb-4">
+        For a Bernoulli logit, $\mathcal{I}(z)=p(1-p)$: the model is most informative near $p=0.5$ and least informative near certainty. For a Gaussian mean with known variance, $\mathcal{I}(\mu)=1/\sigma^2$: a smaller variance means each observation carries more information about the mean. These are exactly the factors that appear in the gradients, which is why the same formulas keep reappearing.
+      </p>
+      <div class="olah-callout-amber font-sans-ui text-sm text-slate-700">
+        <strong class="text-amber-900 block mb-1">Why this matters for optimization</strong>
+        Fisher information tells you how much the loss curves in each direction. A plain gradient step treats every direction as equally important; a <em>natural gradient</em> step preconditions by $\mathcal{I}^{-1}$ so that a step of fixed size in probability space corresponds to a fixed change in likelihood. You do not need natural gradients to use these notes, but this is the reason the curvature of NLL is not just an abstract curiosity.
+      </div>
+    </section>
+
+    <!-- SECTION 3 -->
+    <section id="sec-3" class="mb-14 scroll-mt-16">
+      <div class="flex items-center gap-2 font-sans-ui text-xs font-bold uppercase tracking-wider text-rose-800 mb-1">
+        <span>Section 03</span>
+        <span>&middot;</span>
+        <span class="text-slate-400">Bernoulli model</span>
+      </div>
+      <h2 class="font-sans-ui text-2xl font-bold text-slate-900 mb-4">
+        3. Binary Logistic Regression: Deriving $\partial L/\partial z = p-y$
+      </h2>
+
+      <p class="mb-4">
+        Start with the simplest probabilistic classifier. The label is binary, $y\in\{0,1\}$. The model computes a linear score $z=w^\top x+b$ and turns it into a probability with the sigmoid:
+      </p>
+      <div class="math-block">
+        $$p \;=\; P(y=1\mid x) \;=\; \sigma(z) \;=\; \frac{1}{1+e^{-z}},
+        \qquad
+        z \;=\; w^\top x+b.$$
+      </div>
+      <p class="mb-4">
+        The quantity $z$ is the <strong>log-odds</strong> or <strong>logit</strong>:
+      </p>
+      <div class="math-block">
+        $$z \;=\; \log\frac{p}{1-p}.$$
+      </div>
+      <p class="mb-4">
+        This is why $z$ can be any real number while $p$ is trapped in $(0,1)$. A logit of $0$ means odds $1:1$, so $p=0.5$. A logit of $2$ means odds $e^2\approx7.39:1$, so $p\approx0.881$. The sigmoid is the bridge from the unconstrained linear world to the bounded probability world.
+      </p>
+
+      <h3 class="font-sans-ui text-lg font-bold text-slate-800 mt-7 mb-3">
+        The negative log-likelihood of one example
+      </h3>
+      <p class="mb-4">
+        For a Bernoulli random variable, the probability mass function is $p^y(1-p)^{1-y}$. Taking the negative log gives the binary cross-entropy:
+      </p>
+      <div class="math-block-rose">
+        $$L(p,y) \;=\; -\Big[\,y\log p+(1-y)\log(1-p)\,\Big].$$
+      </div>
+      <p class="mb-4">
+        Check the two cases. If $y=1$, the second term vanishes and $L=-\log p$: the loss is the negative log-probability assigned to the correct class. If $y=0$, the first term vanishes and $L=-\log(1-p)$: the loss is the negative log-probability assigned to the correct class $0$. In both cases, the loss is "negative log probability of what actually happened."
+      </p>
+
+      <h3 class="font-sans-ui text-lg font-bold text-slate-800 mt-7 mb-3">
+        Derivation 1: differentiate through the probability
+      </h3>
+      <p class="mb-4">
+        First differentiate $L$ with respect to $p$:
+      </p>
+      <div class="deriv-step">
+        $$\frac{\partial L}{\partial p}
+        = -\left(\frac{y}{p} - \frac{1-y}{1-p}\right)
+        = -\frac{y(1-p)-(1-y)p}{p(1-p)}
+        = \frac{p-y}{p(1-p)}.$$
+      </div>
+      <p class="mb-4">
+        Then differentiate the sigmoid. A useful identity is $\sigma'(z)=\sigma(z)(1-\sigma(z))=p(1-p)$:
+      </p>
+      <div class="deriv-step">
+        $$\frac{\partial p}{\partial z} = p(1-p).$$
+      </div>
+      <p class="mb-4">
+        Multiply the two factors. The $p(1-p)$ cancels exactly:
+      </p>
+      <div class="deriv-step-highlight">
+        $$\frac{\partial L}{\partial z}
+        = \frac{\partial L}{\partial p}\cdot\frac{\partial p}{\partial z}
+        = \frac{p-y}{p(1-p)}\cdot p(1-p)
+        = p-y.$$
+      </div>
+      <p class="mb-4">
+        That cancellation is the heart of the story. The loss derivative is huge near saturation, and the sigmoid derivative is tiny near saturation; their product is the simple, bounded error $p-y$.
+      </p>
+
+      <h3 class="font-sans-ui text-lg font-bold text-slate-800 mt-7 mb-3">
+        Derivation 2: the logit form (the one libraries use)
+      </h3>
+      <p class="mb-4">
+        There is a shorter route that avoids differentiating $\log p$ near zero. Substitute $p=\sigma(z)$ and simplify the log-likelihood before differentiating:
+      </p>
+      <div class="math-block">
+        $$y\log p+(1-y)\log(1-p)
+        = yz-\log(1+e^z).$$
+      </div>
+      <p class="mb-4">
+        Let us verify that identity. For $y=1$ it says $\log\sigma(z)=z-\log(1+e^z)$, which follows from $\sigma(z)=e^z/(1+e^z)$. For $y=0$ it says $\log(1-\sigma(z))=-\log(1+e^z)$, which follows from $1-\sigma(z)=1/(1+e^z)$. Therefore
+      </p>
+      <div class="math-block-teal">
+        $$L(z,y) \;=\; \log(1+e^z)-yz \;=\; \operatorname{softplus}(z)-yz.$$
+      </div>
+      <p class="mb-4">
+        Differentiate with respect to $z$. The derivative of $\log(1+e^z)$ is $e^z/(1+e^z)=p$:
+      </p>
+      <div class="deriv-step-highlight">
+        $$\frac{\partial L}{\partial z}
+        = \frac{e^z}{1+e^z}-y
+        = p-y.$$
+      </div>
+      <p class="mb-4">
+        This form is not just prettier; it is the numerically stable form. It never computes $\log(0)$, and it remains accurate when $z$ is very large or very small. We will implement it in Section 8.
+      </p>
+
+      <h3 class="font-sans-ui text-lg font-bold text-slate-800 mt-7 mb-3">
+        From the logit to the weights and bias
+      </h3>
+      <p class="mb-4">
+        Since $z=w^\top x+b$, the chain rule gives the parameter gradients immediately:
+      </p>
+      <div class="math-block-rose">
+        $$\frac{\partial L}{\partial w} = (p-y)\,x,
+        \qquad
+        \frac{\partial L}{\partial b} = p-y.$$
+      </div>
+      <p class="mb-4">
+        For a batch of $N$ examples, stack the inputs into a matrix $X\in\mathbb{R}^{N\times d}$, the predictions into a vector $p\in\mathbb{R}^N$, and the labels into $y\in\mathbb{R}^N$. With the mean NLL,
+      </p>
+      <div class="math-block">
+        $$\nabla_w J = \frac{1}{N}X^\top(p-y),
+        \qquad
+        \nabla_b J = \frac{1}{N}\mathbf{1}^\top(p-y).$$
+      </div>
+      <p class="mb-4">
+        This is the vectorized form used in every deep learning library. The residual $p-y$ is computed elementwise, then multiplied by the inputs. Notice that the gradient with respect to $w$ is a weighted sum of the input vectors, where the weights are the per-example errors.
+      </p>
+
+      <h3 class="font-sans-ui text-lg font-bold text-slate-800 mt-7 mb-3">
+        What the gradient is telling you
+      </h3>
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 my-5 font-sans-ui text-sm">
+        <div class="bg-white border border-slate-200 rounded-lg p-4">
+          <div class="text-xs font-bold uppercase tracking-wider text-rose-700 mb-1">$p-y&lt;0$</div>
+          <p class="text-slate-600 text-xs leading-relaxed">The model predicted too little for a positive label. Gradient descent increases $z$, which increases $p$.</p>
+        </div>
+        <div class="bg-white border border-slate-200 rounded-lg p-4">
+          <div class="text-xs font-bold uppercase tracking-wider text-rose-700 mb-1">$p-y&gt;0$</div>
+          <p class="text-slate-600 text-xs leading-relaxed">The model predicted too much for a negative label. Gradient descent decreases $z$, which decreases $p$.</p>
+        </div>
+        <div class="bg-white border border-slate-200 rounded-lg p-4">
+          <div class="text-xs font-bold uppercase tracking-wider text-rose-700 mb-1">$p-y\approx0$</div>
+          <p class="text-slate-600 text-xs leading-relaxed">The prediction is already close to the label. The gradient is small; there is little left to correct.</p>
+        </div>
+      </div>
+      <p class="mb-4">
+        The residual is bounded: $p-y\in(-1,1)$. That is a feature, not a bug. A wrong and confident prediction produces a gradient close to $-1$ or $+1$, not an infinite one. A correct and confident prediction produces a gradient close to zero. The model spends its effort where it is wrong, but never explodes.
+      </p>
+
+      <h3 class="font-sans-ui text-lg font-bold text-slate-800 mt-7 mb-3">
+        Why not just use squared error with a sigmoid?
+      </h3>
+      <p class="mb-4">
+        Suppose you trained the same sigmoid with the squared error $M=\tfrac12(p-y)^2$. Its gradient with respect to $z$ is
+      </p>
+      <div class="math-block-amber">
+        $$\frac{\partial M}{\partial z}
+        = (p-y)\,\frac{\partial p}{\partial z}
+        = (p-y)\,p(1-p).$$
+      </div>
+      <p class="mb-4">
+        The extra factor $p(1-p)$ is disastrous when the model is confidently wrong. Take $y=1$ and $p=0.01$. The BCE gradient is $p-y=-0.99$, a strong signal to increase $z$. The squared-error gradient is $(-0.99)(0.01)(0.99)\approx-0.0098$, roughly one hundred times smaller. The model is maximally wrong, but the gradient has almost vanished because the sigmoid is saturated.
+      </p>
+      <div class="olah-callout-rose font-sans-ui text-sm text-slate-700">
+        <strong class="text-rose-900 block mb-1">The saturation trap</strong>
+        MSE with a sigmoid is not convex in $z$, and its gradient vanishes exactly where you most need it. BCE with a logit is convex in $z$ and its gradient is bounded away from zero when the prediction is wrong. This is the practical reason logistic regression is trained with cross-entropy, not squared error. The same logic explains why softmax is paired with cross-entropy rather than MSE on the probabilities.
+      </div>
+
+      <h3 class="font-sans-ui text-lg font-bold text-slate-800 mt-7 mb-3">
+        Worked example: the numbers from the prompt
+      </h3>
+      <p class="mb-4">
+        Take a single example with label $y=1$ and logit $z=0$. Then
+      </p>
+      <div class="deriv-step">
+        <div class="font-sans-ui text-xs font-bold text-slate-500 uppercase mb-1">Step 1: probability</div>
+        $$p=\sigma(0)=\frac{1}{1+e^0}=\frac12=0.5.$$
+      </div>
+      <div class="deriv-step">
+        <div class="font-sans-ui text-xs font-bold text-slate-500 uppercase mb-1">Step 2: negative log-likelihood</div>
+        $$L=-\big[y\log p+(1-y)\log(1-p)\big]=-\log(0.5)=\log 2\approx0.693147.$$
+      </div>
+      <div class="deriv-step-highlight">
+        <div class="font-sans-ui text-xs font-bold text-blue-600 uppercase mb-1">Step 3: gradient with respect to the logit</div>
+        $$\frac{\partial L}{\partial z}=p-y=0.5-1=-0.5.$$
+      </div>
+      <p class="mb-4">
+        The negative sign means gradient descent should <strong>increase</strong> $z$. The model assigned only $50\%$ probability to the correct label, so the logit needs to move upward. If $x=1$, $w=0$, $b=0$, and the learning rate is $1$, one step gives $w\leftarrow0-1(-0.5)(1)=0.5$ and $b\leftarrow0-1(-0.5)=0.5$. The new logit is $z=1$, the new probability is $\sigma(1)\approx0.731$, and the new loss is $-\log(0.731)\approx0.313$, down from $0.693$. The gradient did exactly what it promised.
+      </p>
+
+      <h3 class="font-sans-ui text-lg font-bold text-slate-800 mt-7 mb-3">
+        A full numerical example with features
+      </h3>
+      <p class="mb-4">
+        Now use the values from the interactive lab: $x=1.5$, $w=0.8$, $b=-0.5$, $y=1$. The forward pass is
+      </p>
+      <div class="math-block">
+        $$z=wx+b=(0.8)(1.5)-0.5=0.7,
+        \qquad
+        p=\sigma(0.7)\approx0.6682.$$
+      </div>
+      <p class="mb-4">
+        The loss is $L=-\log(0.6682)\approx0.4032$. The gradients are
+      </p>
+      <div class="math-block-teal">
+        $$\frac{\partial L}{\partial z}=0.6682-1=-0.3318,
+        \qquad
+        \frac{\partial L}{\partial w}=(-0.3318)(1.5)=-0.4977,
+        \qquad
+        \frac{\partial L}{\partial b}=-0.3318.$$
+      </div>
+      <p class="mb-4">
+        With a learning rate of $0.5$, the updates are $w\leftarrow0.8-0.5(-0.4977)=1.0489$ and $b\leftarrow-0.5-0.5(-0.3318)=-0.3341$. The new logit is $1.2392$, the new probability is about $0.7754$, and the new loss is about $0.2543$. The model has become more confident in the correct label, and the loss has fallen.
+      </p>
+
+      <div class="olah-callout font-sans-ui text-sm text-slate-700">
+        <strong class="text-slate-900 block mb-1">If your labels are $\{-1,+1\}$ instead of $\{0,1\}$</strong>
+        The NLL is $\log(1+e^{-yz})$, and the gradient with respect to $z$ is $-y\,\sigma(-yz)$. For $y=+1$ this is $p-1$, and for $y=-1$ this is $p$. It is the same formula in a different label convention, so do not mix conventions inside one loss function.
+      </div>
+    </section>
+
+    <!-- SECTION 4 -->
+    <section id="sec-4" class="mb-14 scroll-mt-16">
+      <div class="flex items-center gap-2 font-sans-ui text-xs font-bold uppercase tracking-wider text-rose-800 mb-1">
+        <span>Section 04</span>
+        <span>&middot;</span>
+        <span class="text-slate-400">Interactive</span>
+      </div>
+      <h2 class="font-sans-ui text-2xl font-bold text-slate-900 mb-4">
+        4. Lab: Watch $p-y$ Move the Model
+      </h2>
+      <p class="mb-4">
+        The formula is simple enough to read, but the behavior is easier to believe when you can drag it. In this lab, $z=wx+b$ and $p=\sigma(z)$. The blue curve is the sigmoid; the amber tangent line has slope $p(1-p)$. The second plot shows the NLL as a function of $z$ for the current label&mdash;notice that it is convex, and that the current point sits somewhere on that curve.
+      </p>
+
+      <div class="lab-card">
+        <div class="flex flex-wrap items-start justify-between gap-3 mb-5">
+          <div>
+            <div class="font-sans-ui text-[10px] font-bold uppercase tracking-widest text-rose-700 mb-1">Interactive Lab 01</div>
+            <h3 class="font-sans-ui text-lg font-bold text-slate-900">Binary logistic regression</h3>
+            <p class="font-sans-ui text-xs text-slate-500 mt-0.5">Drag the sliders, flip the label, then take a gradient step.</p>
+          </div>
+          <div class="flex items-center gap-3 font-sans-ui text-[11px] text-slate-500">
+            <span><span class="mini-key" style="background:#2b6cb0"></span>sigmoid</span>
+            <span><span class="mini-key" style="background:#d97706"></span>tangent</span>
+            <span><span class="mini-key" style="background:#e11d48"></span>current</span>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <!-- Controls -->
+          <div>
+            <div class="space-y-4">
+              <div>
+                <div class="flex items-center justify-between font-sans-ui text-xs mb-1">
+                  <label for="lab-x" class="font-semibold text-slate-700">Input $x$</label>
+                  <span id="lab-x-val" class="font-mono-code text-slate-600">1.50</span>
+                </div>
+                <input id="lab-x" type="range" min="-3" max="3" step="0.05" value="1.5" class="w-full">
+              </div>
+              <div>
+                <div class="flex items-center justify-between font-sans-ui text-xs mb-1">
+                  <label for="lab-w" class="font-semibold text-slate-700">Weight $w$</label>
+                  <span id="lab-w-val" class="font-mono-code text-slate-600">0.80</span>
+                </div>
+                <input id="lab-w" type="range" min="-5" max="5" step="0.01" value="0.8" class="w-full">
+              </div>
+              <div>
+                <div class="flex items-center justify-between font-sans-ui text-xs mb-1">
+                  <label for="lab-b" class="font-semibold text-slate-700">Bias $b$</label>
+                  <span id="lab-b-val" class="font-mono-code text-slate-600">-0.50</span>
+                </div>
+                <input id="lab-b" type="range" min="-5" max="5" step="0.01" value="-0.5" class="w-full">
+              </div>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-3 mt-5 font-sans-ui">
+              <div class="flex items-center gap-1.5">
+                <span class="text-xs font-semibold text-slate-600">Label</span>
+                <button type="button" id="lab-y0" class="toggle-btn">$y=0$</button>
+                <button type="button" id="lab-y1" class="toggle-btn active">$y=1$</button>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <label for="lab-lr" class="text-xs font-semibold text-slate-600">Step size</label>
+                <select id="lab-lr" class="text-xs border border-slate-300 rounded px-2 py-1.5 font-mono-code text-slate-700 bg-white">
+                  <option value="0.05">0.05</option>
+                  <option value="0.25">0.25</option>
+                  <option value="0.5" selected>0.50</option>
+                  <option value="1.0">1.00</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="flex flex-wrap gap-2 mt-4">
+              <button type="button" id="lab-step" class="font-sans-ui text-xs font-semibold px-3 py-2 rounded-md bg-rose-600 hover:bg-rose-700 text-white transition">Take a gradient step</button>
+              <button type="button" id="lab-flip" class="font-sans-ui text-xs font-semibold px-3 py-2 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 transition">Flip $y$</button>
+              <button type="button" id="lab-reset" class="font-sans-ui text-xs font-semibold px-3 py-2 rounded-md border border-slate-300 hover:bg-slate-50 text-slate-700 transition">Reset</button>
+            </div>
+
+            <div class="mt-4">
+              <div class="font-sans-ui text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Presets</div>
+              <div class="flex flex-wrap gap-1.5">
+                <button type="button" id="lab-preset-prompt" class="preset-btn">Prompt example</button>
+                <button type="button" id="lab-preset-wrong" class="preset-btn">Confidently wrong</button>
+                <button type="button" id="lab-preset-uncertain" class="preset-btn">Uncertain</button>
+                <button type="button" id="lab-preset-right" class="preset-btn">Confidently right</button>
+              </div>
+            </div>
+
+            <div class="font-sans-ui text-[11px] text-slate-500 mt-4 leading-relaxed">
+              Gradient steps: <span id="lab-step-count" class="font-mono-code text-slate-700">0</span>.
+              The update is $w\leftarrow w-\eta\,\partial L/\partial w$ and $b\leftarrow b-\eta\,\partial L/\partial b$.
+            </div>
+          </div>
+
+          <!-- Readouts -->
+          <div>
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              <div class="metric-card">
+                <div class="metric-label">logit $z$</div>
+                <div id="lab-z" class="metric-value">0.7000</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-label">probability $p$</div>
+                <div id="lab-p" class="metric-value">0.6682</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-label">NLL $L$</div>
+                <div id="lab-loss" class="metric-value">0.4032</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-label">$\partial L/\partial z$</div>
+                <div id="lab-dz" class="metric-value">-0.3318</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-label">$\partial L/\partial w$</div>
+                <div id="lab-dw" class="metric-value">-0.4977</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-label">$\partial L/\partial b$</div>
+                <div id="lab-db" class="metric-value">-0.3318</div>
+              </div>
+            </div>
+
+            <div class="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 font-sans-ui text-xs text-slate-600 leading-relaxed">
+              <div id="lab-chain">$\partial L/\partial z = p-y = 0.6682-1 = -0.3318$</div>
+              <div class="mt-1 text-[11px] text-slate-500">For comparison, MSE with a sigmoid would give $(p-y)\,p(1-p)=$ <span id="lab-mse-grad" class="font-mono-code">-0.0736</span>.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Plots -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-5">
+          <div class="rounded-lg border border-slate-200 bg-white p-2">
+            <div class="font-sans-ui text-[10px] font-bold uppercase tracking-wider text-slate-500 px-2 pt-1">Sigmoid and local slope</div>
+            <svg id="lab-sigmoid" viewBox="0 0 360 210" class="w-full h-auto" role="img" aria-label="Sigmoid curve with current point and tangent line">
+              <defs>
+                <clipPath id="clip-sig"><rect x="44" y="14" width="302" height="166"></rect></clipPath>
+              </defs>
+              <rect x="44" y="14" width="302" height="166" fill="#fbfdff"></rect>
+              <line x1="44" y1="180" x2="346" y2="180" class="plot-axis"></line>
+              <line x1="44" y1="14" x2="44" y2="180" class="plot-axis"></line>
+              <line x1="44" y1="97" x2="346" y2="97" class="plot-grid"></line>
+              <line x1="44" y1="14" x2="346" y2="14" class="plot-grid"></line>
+              <line x1="44" y1="180" x2="346" y2="180" class="plot-grid"></line>
+              <line x1="195" y1="14" x2="195" y2="180" class="plot-grid"></line>
+              <text x="38" y="183" text-anchor="end" class="plot-label">0</text>
+              <text x="38" y="100" text-anchor="end" class="plot-label">0.5</text>
+              <text x="38" y="17" text-anchor="end" class="plot-label">1</text>
+              <text x="44" y="196" text-anchor="middle" class="plot-label">-6</text>
+              <text x="195" y="196" text-anchor="middle" class="plot-label">0</text>
+              <text x="346" y="196" text-anchor="middle" class="plot-label">6</text>
+              <text x="195" y="208" text-anchor="middle" class="plot-label-bold">logit z</text>
+              <text x="14" y="97" text-anchor="middle" class="plot-label-bold" transform="rotate(-90 14 97)">p(z)</text>
+              <g clip-path="url(#clip-sig)">
+                <path id="lab-sig-curve" d="" fill="none" stroke="#2b6cb0" stroke-width="2.5"></path>
+                <line id="lab-sig-tangent" x1="0" y1="0" x2="0" y2="0" stroke="#d97706" stroke-width="2" stroke-dasharray="5 3"></line>
+                <line id="lab-sig-drop" x1="0" y1="0" x2="0" y2="180" stroke="#e11d48" stroke-width="1" stroke-dasharray="2 3" opacity="0.55"></line>
+                <circle id="lab-sig-point" cx="0" cy="0" r="5" fill="#e11d48" stroke="#ffffff" stroke-width="2"></circle>
+              </g>
+            </svg>
+          </div>
+
+          <div class="rounded-lg border border-slate-200 bg-white p-2">
+            <div class="font-sans-ui text-[10px] font-bold uppercase tracking-wider text-slate-500 px-2 pt-1">NLL as a function of the logit</div>
+            <svg id="lab-lossplot" viewBox="0 0 360 210" class="w-full h-auto" role="img" aria-label="Negative log-likelihood curve with current point">
+              <defs>
+                <clipPath id="clip-loss"><rect x="44" y="14" width="302" height="166"></rect></clipPath>
+              </defs>
+              <rect x="44" y="14" width="302" height="166" fill="#fbfdff"></rect>
+              <line x1="44" y1="180" x2="346" y2="180" class="plot-axis"></line>
+              <line x1="44" y1="14" x2="44" y2="180" class="plot-axis"></line>
+              <line x1="44" y1="97" x2="346" y2="97" class="plot-grid"></line>
+              <line x1="44" y1="14" x2="346" y2="14" class="plot-grid"></line>
+              <line x1="195" y1="14" x2="195" y2="180" class="plot-grid"></line>
+              <text x="38" y="183" text-anchor="end" class="plot-label">0</text>
+              <text x="38" y="100" text-anchor="end" class="plot-label">3</text>
+              <text x="38" y="17" text-anchor="end" class="plot-label">6</text>
+              <text x="44" y="196" text-anchor="middle" class="plot-label">-6</text>
+              <text x="195" y="196" text-anchor="middle" class="plot-label">0</text>
+              <text x="346" y="196" text-anchor="middle" class="plot-label">6</text>
+              <text x="195" y="208" text-anchor="middle" class="plot-label-bold">logit z</text>
+              <text x="14" y="97" text-anchor="middle" class="plot-label-bold" transform="rotate(-90 14 97)">NLL</text>
+              <g clip-path="url(#clip-loss)">
+                <path id="lab-loss-curve" d="" fill="none" stroke="#e11d48" stroke-width="2.5"></path>
+                <line id="lab-loss-drop" x1="0" y1="0" x2="0" y2="180" stroke="#e11d48" stroke-width="1" stroke-dasharray="2 3" opacity="0.55"></line>
+                <circle id="lab-loss-point" cx="0" cy="0" r="5" fill="#e11d48" stroke="#ffffff" stroke-width="2"></circle>
+              </g>
+            </svg>
+          </div>
+        </div>
+
+        <div class="font-sans-ui text-[11px] text-slate-500 mt-3 leading-relaxed">
+          The tangent slope is $p(1-p)$: near $p=0$ or $p=1$ the sigmoid is flat, so the loss derivative with respect to $p$ must be large to compensate. The product is still $p-y$. The loss curve is convex for both labels, which is why logistic regression has no bad local minima in $z$.
+        </div>
+      </div>
+
+      <div class="olah-callout-teal font-sans-ui text-sm text-slate-700">
+        <strong class="text-teal-900 block mb-1">Three things to try</strong>
+        <ol class="list-decimal pl-5 space-y-1 text-xs">
+          <li><strong>Confidently wrong.</strong> Set $x=2$, $w=2$, $b=2$, $y=0$. Then $z=6$, $p\approx0.9975$, and $L\approx6.0$. The gradient is almost $+1$, not zero. Compare it with the MSE gradient in the readout: it is about $0.0025$.</li>
+          <li><strong>Uncertain.</strong> Set $x=0$, $w=0$, $b=0$, $y=1$. Then $p=0.5$ and $\partial L/\partial z=-0.5$. One step increases $b$ and the probability.</li>
+          <li><strong>Already right.</strong> Set $x=1$, $w=2$, $b=0$, $y=1$. Then $p\approx0.881$ and the gradient is only $-0.119$. The model is correct but not overconfident, so it still receives a small nudge.</li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- SECTION 5 -->
+    <section id="sec-5" class="mb-14 scroll-mt-16">
+      <div class="flex items-center gap-2 font-sans-ui text-xs font-bold uppercase tracking-wider text-rose-800 mb-1">
+        <span>Section 05</span>
+        <span>&middot;</span>
+        <span class="text-slate-400">Gaussian model</span>
+      </div>
+      <h2 class="font-sans-ui text-2xl font-bold text-slate-900 mb-4">
+        5. The Gaussian: Why the Gradient Is $(\mu-x)/\sigma^2$
+      </h2>
+
+      <p class="mb-4">
+        Now switch from a binary label to a real-valued target. The Gaussian model says the observation is the mean plus noise:
+      </p>
+      <div class="math-block">
+        $$x \;=\; \mu+\varepsilon,
+        \qquad
+        \varepsilon\sim\mathcal{N}(0,\sigma^2),
+        \qquad
+        p(x\mid\mu,\sigma^2)=\frac{1}{\sqrt{2\pi\sigma^2}}\exp\!\left(-\frac{(x-\mu)^2}{2\sigma^2}\right).$$
+      </div>
+      <p class="mb-4">
+        The mean $\mu$ is the model's prediction. The variance $\sigma^2$ says how much uncertainty surrounds that prediction. Taking the log turns the exponential into a quadratic:
+      </p>
+      <div class="math-block-teal">
+        $$\log p(x\mid\mu,\sigma^2)
+        = -\frac12\log(2\pi\sigma^2)-\frac{(x-\mu)^2}{2\sigma^2}.$$
+      </div>
+      <p class="mb-4">
+        The NLL is the negative of this expression:
+      </p>
+      <div class="math-block-rose">
+        $$L(\mu,\sigma^2)
+        = \frac12\log(2\pi\sigma^2)+\frac{(x-\mu)^2}{2\sigma^2}.$$
+      </div>
+      <p class="mb-4">
+        The first term does not depend on $\mu$. It is a constant with respect to the mean, so differentiating with respect to $\mu$ only touches the squared residual:
+      </p>
+      <div class="deriv-step">
+        $$\frac{\partial L}{\partial \mu}
+        = \frac{\partial}{\partial\mu}\left[\frac{(x-\mu)^2}{2\sigma^2}\right]
+        = \frac{2(x-\mu)(-1)}{2\sigma^2}
+        = \frac{\mu-x}{\sigma^2}.$$
+      </div>
+      <div class="deriv-step-highlight">
+        $$\boxed{\;\frac{\partial L}{\partial \mu}=\frac{\mu-x}{\sigma^2}\;}$$
+      </div>
+      <p class="mb-4">
+        The sign is exactly what intuition demands. If the observation $x$ is larger than the prediction $\mu$, the gradient is negative, so gradient descent <strong>increases</strong> $\mu$ toward $x$. If $x$ is smaller, the gradient is positive, so $\mu$ decreases. The residual $\mu-x$ is the Gaussian analogue of $p-y$.
+      </p>
+
+      <h3 class="font-sans-ui text-lg font-bold text-slate-800 mt-7 mb-3">
+        The MLE for the mean is the sample mean
+      </h3>
+      <p class="mb-4">
+        For $N$ independent observations, sum the gradients and set them to zero:
+      </p>
+      <div class="math-block">
+        $$\sum_{i=1}^{N}\frac{\mu-x_i}{\sigma^2}=0
+        \quad\Longrightarrow\quad
+        N\mu=\sum_{i=1}^{N}x_i
+        \quad\Longrightarrow\quad
+        \hat{\mu}=\frac1N\sum_{i=1}^{N}x_i.$$
+      </div>
+      <p class="mb-4">
+        The maximum likelihood estimate of the mean is the sample mean. This is the first place where a familiar statistic falls out of a likelihood calculation. The second derivative with respect to $\mu$ is $1/\sigma^2&gt;0$, so the NLL is convex in $\mu$ and this stationary point is the unique minimum.
+      </p>
+
+      <h3 class="font-sans-ui text-lg font-bold text-slate-800 mt-7 mb-3">
+        Fixed variance: Gaussian NLL is precision-weighted MSE
+      </h3>
+      <p class="mb-4">
+        If $\sigma^2$ is fixed, the first term is a constant and the NLL is
+      </p>
+      <div class="math-block">
+        $$L(\mu) \;=\; \text{const}+\frac{(x-\mu)^2}{2\sigma^2}.$$
+      </div>
+      <p class="mb-4">
+        Minimizing this is exactly minimizing squared error. The factor $1/\sigma^2$ does not change the location of the minimum, but it does change the <em>scale of the gradient</em>. A small variance means the model is very confident, so each residual produces a large gradient; a large variance means the model is uncertain, so the same residual produces a smaller gradient. This is why Gaussian NLL is often described as a <strong>precision-weighted</strong> squared error.
+      </p>
+      <div class="olah-callout-amber font-sans-ui text-sm text-slate-700">
+        <strong class="text-amber-900 block mb-1">Learning-rate consequence</strong>
+        If you compare the gradient of $\tfrac12(x-\mu)^2$, which is $\mu-x$, with the Gaussian NLL gradient $(\mu-x)/\sigma^2$, you will see that the Gaussian version is the MSE gradient multiplied by $1/\sigma^2$. For fixed $\sigma^2$, this is equivalent to rescaling the learning rate by $1/\sigma^2$. If you change the assumed noise level, you must retune the step size unless you account for this factor.
+      </div>
+
+      <h3 class="font-sans-ui text-lg font-bold text-slate-800 mt-7 mb-3">
+        Learning the variance as well
+      </h3>
+      <p class="mb-4">
+        If $\sigma^2$ is also a parameter, differentiate the NLL with respect to it:
+      </p>
+      <div class="deriv-step">
+        $$\frac{\partial L}{\partial \sigma^2}
+        = \frac{1}{2\sigma^2}
+        - \frac{(x-\mu)^2}{2\sigma^4}
+        = \frac{\sigma^2-(x-\mu)^2}{2\sigma^4}.$$
+      </div>
+      <p class="mb-4">
+        Setting the sum over $N$ examples to zero gives
+      </p>
+      <div class="math-block-teal">
+        $$\hat{\sigma}^2_{\text{MLE}}=\frac1N\sum_{i=1}^{N}(x_i-\hat{\mu})^2.$$
+      </div>
+      <p class="mb-4">
+        Notice the denominator is $N$, not $N-1$. The MLE is biased downward; the unbiased sample variance uses $N-1$. This is a small but important distinction. It also explains why a single observation gives a degenerate MLE $\hat{\sigma}^2=0$ when the mean is free to match the point: the likelihood can be made arbitrarily large by collapsing the variance around a perfect fit. With $N\ge2$ and a fixed mean, the average squared residual is the MLE.
+      </p>
+      <p class="mb-4">
+        The log-variance term is essential. Without it, increasing $\sigma^2$ would always reduce the squared-residual term, and the model would drive $\sigma^2\to\infty$ (infinite uncertainty). The $\tfrac12\log(2\pi\sigma^2)$ term penalizes variances that are too large, while the squared-residual term penalizes variances that are too small. Their balance produces a sensible estimate.
+      </p>
+      <p class="mb-4">
+        In code, we usually parameterize the standard deviation as $\sigma=e^{s}$ or the variance as $\sigma^2=e^{v}$ so that positivity is automatic. Then the chain rule adds a factor:
+      </p>
+      <div class="math-block">
+        $$\frac{\partial L}{\partial \sigma}
+        = -\frac{1}{\sigma}+\frac{(x-\mu)^2}{\sigma^3},
+        \qquad
+        \frac{\partial L}{\partial s}
+        = \sigma\,\frac{\partial L}{\partial \sigma}.$$
+      </div>
+
+      <h3 class="font-sans-ui text-lg font-bold text-slate-800 mt-7 mb-3">
+        The multivariate Gaussian: whitened residuals
+      </h3>
+      <p class="mb-4">
+        For a $d$-dimensional observation with mean $\mu$ and covariance $\Sigma$,
+      </p>
+      <div class="math-block">
+        $$\log p(x\mid\mu,\Sigma)
+        = -\frac d2\log(2\pi)-\frac12\log|\Sigma|
+        -\frac12(x-\mu)^\top\Sigma^{-1}(x-\mu).$$
+      </div>
+      <p class="mb-4">
+        Differentiating with respect to the mean gives
+      </p>
+      <div class="math-block-rose">
+        $$\frac{\partial L}{\partial \mu}=\Sigma^{-1}(\mu-x).$$
+      </div>
+      <p class="mb-4">
+        When $\Sigma=\sigma^2 I$, this reduces to $(\mu-x)/\sigma^2$. In general, $\Sigma^{-1}$ rotates and rescales the residual so that directions with small variance receive larger gradients. This is the Mahalanobis geometry of the Gaussian, and it is the reason whitening transformations are useful in optimization.
+      </p>
+
+      <h3 class="font-sans-ui text-lg font-bold text-slate-800 mt-7 mb-3">
+        Worked example: $x=5$, $\mu=3$, $\sigma=1.5$
+      </h3>
+      <div class="deriv-step">
+        <div class="font-sans-ui text-xs font-bold text-slate-500 uppercase mb-1">Step 1: variance and residual</div>
+        $$\sigma^2=2.25,\qquad x-\mu=2,\qquad (x-\mu)^2=4.$$
+      </div>
+      <div class="deriv-step">
+        <div class="font-sans-ui text-xs font-bold text-slate-500 uppercase mb-1">Step 2: log density and NLL</div>
+        $$\log p=-\frac12\log(2\pi\cdot2.25)-\frac{4}{2\cdot2.25}
+        \approx-1.3244-0.8889=-2.2133,
+        \qquad L\approx2.2133.$$
+      </div>
+      <div class="deriv-step-highlight">
+        <div class="font-sans-ui text-xs font-bold text-blue-600 uppercase mb-1">Step 3: gradients</div>
+        $$\frac{\partial L}{\partial\mu}=\frac{3-5}{2.25}\approx-0.8889,
+        \qquad
+        \frac{\partial L}{\partial\sigma^2}
+        =\frac{2.25-4}{2(2.25)^2}\approx-0.1728.$$
+      </div>
+      <p class="mb-4">
+        The mean gradient is negative, so gradient descent moves $\mu$ upward toward $5$. The variance gradient is negative, so gradient descent increases $\sigma^2$: the residual is larger than the current variance, so the model should become less confident. Both signs match the story.
+      </p>
+
+      <!-- Gaussian lab -->
+      <div class="lab-card">
+        <div class="flex flex-wrap items-start justify-between gap-3 mb-5">
+          <div>
+            <div class="font-sans-ui text-[10px] font-bold uppercase tracking-widest text-teal-700 mb-1">Interactive Lab 02</div>
+            <h3 class="font-sans-ui text-lg font-bold text-slate-900">Gaussian likelihood and its gradients</h3>
+            <p class="font-sans-ui text-xs text-slate-500 mt-0.5">Move the observation $x$, the mean $\mu$, and the noise $\sigma$.</p>
+          </div>
+          <div class="flex items-center gap-3 font-sans-ui text-[11px] text-slate-500">
+            <span><span class="mini-key" style="background:#0d9488"></span>density</span>
+            <span><span class="mini-key" style="background:#2b6cb0"></span>mean</span>
+            <span><span class="mini-key" style="background:#e11d48"></span>observation</span>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div>
+            <div class="space-y-4">
+              <div>
+                <div class="flex items-center justify-between font-sans-ui text-xs mb-1">
+                  <label for="g-x" class="font-semibold text-slate-700">Observation $x$</label>
+                  <span id="g-x-val" class="font-mono-code text-slate-600">5.00</span>
+                </div>
+                <input id="g-x" type="range" min="-8" max="8" step="0.1" value="5" class="w-full">
+              </div>
+              <div>
+                <div class="flex items-center justify-between font-sans-ui text-xs mb-1">
+                  <label for="g-mu" class="font-semibold text-slate-700">Mean $\mu$</label>
+                  <span id="g-mu-val" class="font-mono-code text-slate-600">3.00</span>
+                </div>
+                <input id="g-mu" type="range" min="-8" max="8" step="0.1" value="3" class="w-full">
+              </div>
+              <div>
+                <div class="flex items-center justify-between font-sans-ui text-xs mb-1">
+                  <label for="g-sigma" class="font-semibold text-slate-700">Noise $\sigma$</label>
+                  <span id="g-sigma-val" class="font-mono-code text-slate-600">1.50</span>
+                </div>
+                <input id="g-sigma" type="range" min="0.3" max="3" step="0.05" value="1.5" class="w-full">
+              </div>
+            </div>
+
+            <div class="flex flex-wrap gap-2 mt-5">
+              <button type="button" id="g-preset-default" class="preset-btn">Worked example</button>
+              <button type="button" id="g-preset-fit" class="preset-btn">Well fit</button>
+              <button type="button" id="g-preset-outlier" class="preset-btn">Outlier</button>
+            </div>
+
+            <div class="font-sans-ui text-[11px] text-slate-500 mt-4 leading-relaxed">
+              The density curve is $p(x\mid\mu,\sigma^2)$. The dashed blue line marks $\mu$; the red dot marks the observed $x$. The amber segment on the axis is the residual $x-\mu$.
+            </div>
+          </div>
+
+          <div>
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              <div class="metric-card">
+                <div class="metric-label">$\log p(x)$</div>
+                <div id="g-logp" class="metric-value">-2.2133</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-label">NLL</div>
+                <div id="g-nll" class="metric-value">2.2133</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-label">MSE</div>
+                <div id="g-mse" class="metric-value">4.0000</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-label">$\partial L/\partial\mu$</div>
+                <div id="g-dmu" class="metric-value">-0.8889</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-label">$\partial L/\partial\sigma^2$</div>
+                <div id="g-dvar" class="metric-value">-0.1728</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-label">$\partial L/\partial\sigma$</div>
+                <div id="g-dsigma" class="metric-value">-0.5185</div>
+              </div>
+            </div>
+            <div class="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 font-sans-ui text-xs text-slate-600 leading-relaxed">
+              <div id="g-chain">$\partial L/\partial\mu = (\mu-x)/\sigma^2 = (3-5)/2.25 = -0.8889$</div>
+              <div class="mt-1 text-[11px] text-slate-500">The NLL is $\tfrac12\log(2\pi\sigma^2)+(x-\mu)^2/(2\sigma^2)$. Only the second term depends on $\mu$.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="rounded-lg border border-slate-200 bg-white p-2 mt-5">
+          <div class="font-sans-ui text-[10px] font-bold uppercase tracking-wider text-slate-500 px-2 pt-1">Gaussian density</div>
+          <svg id="g-plot" viewBox="0 0 360 210" class="w-full h-auto" role="img" aria-label="Gaussian density with mean and observation">
+            <defs>
+              <clipPath id="clip-g"><rect x="44" y="14" width="302" height="166"></rect></clipPath>
+            </defs>
+            <rect x="44" y="14" width="302" height="166" fill="#fbfdff"></rect>
+            <line x1="44" y1="180" x2="346" y2="180" class="plot-axis"></line>
+            <line x1="44" y1="14" x2="44" y2="180" class="plot-axis"></line>
+            <line x1="44" y1="97" x2="346" y2="97" class="plot-grid"></line>
+            <line x1="44" y1="14" x2="346" y2="14" class="plot-grid"></line>
+            <line x1="195" y1="14" x2="195" y2="180" class="plot-grid"></line>
+            <text x="38" y="183" text-anchor="end" class="plot-label">0</text>
+            <text x="38" y="100" text-anchor="end" class="plot-label">0.7</text>
+            <text x="38" y="17" text-anchor="end" class="plot-label">1.4</text>
+            <text x="44" y="196" text-anchor="middle" class="plot-label">-8</text>
+            <text x="195" y="196" text-anchor="middle" class="plot-label">0</text>
+            <text x="346" y="196" text-anchor="middle" class="plot-label">8</text>
+            <text x="195" y="208" text-anchor="middle" class="plot-label-bold">x</text>
+            <text x="14" y="97" text-anchor="middle" class="plot-label-bold" transform="rotate(-90 14 97)">density</text>
+            <g clip-path="url(#clip-g)">
+              <path id="g-curve" d="" fill="none" stroke="#0d9488" stroke-width="2.5"></path>
+              <line id="g-mu-line" x1="0" y1="14" x2="0" y2="180" stroke="#2b6cb0" stroke-width="1.5" stroke-dasharray="5 3"></line>
+              <line id="g-resid-line" x1="0" y1="180" x2="0" y2="180" stroke="#d97706" stroke-width="3"></line>
+              <line id="g-x-line" x1="0" y1="14" x2="0" y2="180" stroke="#e11d48" stroke-width="1" stroke-dasharray="2 3" opacity="0.45"></line>
+              <circle id="g-point" cx="0" cy="0" r="5" fill="#e11d48" stroke="#ffffff" stroke-width="2"></circle>
+            </g>
+          </svg>
+        </div>
+
+        <div class="font-sans-ui text-[11px] text-slate-500 mt-3 leading-relaxed">
+          Try the <strong>outlier</strong> preset: $x=5$, $\mu=0$, $\sigma=1$. The residual is $5$, so $\partial L/\partial\mu=-5$ and the mean is pulled strongly toward the observation. The variance gradient is negative, so gradient descent increases $\sigma^2$ to become less confident. Try the <strong>well fit</strong> preset: $x=\mu$, so the mean gradient is zero, but the variance gradient is positive and the model wants to decrease $\sigma^2$, becoming more confident.
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 6 -->
+    <section id="sec-6" class="mb-14 scroll-mt-16">
+      <div class="flex items-center gap-2 font-sans-ui text-xs font-bold uppercase tracking-wider text-rose-800 mb-1">
+        <span>Section 06</span>
+        <span>&middot;</span>
+        <span class="text-slate-400">Categorical model</span>
+      </div>
+      <h2 class="font-sans-ui text-2xl font-bold text-slate-900 mb-4">
+        6. Softmax Cross-Entropy: The Categorical Version of the Same Story
+      </h2>
+
+      <p class="mb-4">
+        A classifier with $K$ classes outputs a vector of logits $z\in\mathbb{R}^K$. Softmax turns it into a probability vector $q$:
+      </p>
+      <div class="math-block">
+        $$q_i=\operatorname{softmax}(z)_i=\frac{e^{z_i}}{\sum_{j=1}^{K}e^{z_j}},
+        \qquad i=1,\dots,K.$$
+      </div>
+      <p class="mb-4">
+        The label is a one-hot vector $y\in\{0,1\}^K$ with exactly one entry equal to $1$. If the true class is $c$, then $y_c=1$ and all other entries are zero. The categorical negative log-likelihood is
+      </p>
+      <div class="math-block-rose">
+        $$L(z,y)=-\sum_{i=1}^{K}y_i\log q_i=-\log q_c.$$
+      </div>
+      <p class="mb-4">
+        This is exactly the cross-entropy between the one-hot label distribution and the model's distribution. Because the label is one-hot, only the true class contributes to the loss. The model is punished by the negative log-probability it assigned to the correct answer.
+      </p>
+
+      <h3 class="font-sans-ui text-lg font-bold text-slate-800 mt-7 mb-3">
+        The log-sum-exp form
+      </h3>
+      <p class="mb-4">
+        Substitute the softmax definition and simplify:
+      </p>
+      <div class="math-block">
+        $$L(z,y)
+        =-\log\frac{e^{z_c}}{\sum_j e^{z_j}}
+        =-z_c+\log\sum_{j=1}^{K}e^{z_j}
+        =-z_y+\operatorname{LSE}(z),$$
+      </div>
+      <p class="mb-4">
+        where $\operatorname{LSE}(z)=\log\sum_j e^{z_j}$ is the log-sum-exp function. This is the categorical analogue of the logistic form $\log(1+e^z)-yz$. In both cases, the loss is a linear term in the correct logit minus a smooth normalizer. Differentiating the normalizer is the whole game.
+      </p>
+
+      <h3 class="font-sans-ui text-lg font-bold text-slate-800 mt-7 mb-3">
+        Derivation: differentiate the normalizer
+      </h3>
+      <p class="mb-4">
+        The derivative of log-sum-exp is a softmax:
+      </p>
+      <div class="deriv-step">
+        $$\frac{\partial}{\partial z_i}\log\sum_{j=1}^{K}e^{z_j}
+        =\frac{e^{z_i}}{\sum_j e^{z_j}}
+        =q_i.$$
+      </div>
+      <p class="mb-4">
+        The derivative of $-z_y$ with respect to $z_i$ is $-y_i$ (it is $-1$ when $i$ is the true class, and $0$ otherwise). Therefore
+      </p>
+      <div class="deriv-step-highlight">
+        $$\boxed{\;\frac{\partial L}{\partial z_i}=q_i-y_i\;}$$
+      </div>
+      <p class="mb-4">
+        In vector form, $\partial L/\partial z=q-y$. This is the same "prediction minus target" residual as logistic regression, now with one residual per class.
+      </p>
+
+      <h3 class="font-sans-ui text-lg font-bold text-slate-800 mt-7 mb-3">
+        The Jacobian route (and why the cancellation is not an accident)
+      </h3>
+      <p class="mb-4">
+        If you want to see the full chain rule, differentiate the softmax itself. For $i,j\in\{1,\dots,K\}$,
+      </p>
+      <div class="math-block">
+        $$\frac{\partial q_k}{\partial z_i}=q_k(\delta_{ki}-q_i),$$
+      </div>
+      <p class="mb-4">
+        where $\delta_{ki}=1$ if $k=i$ and $0$ otherwise. Then
+      </p>
+      <div class="deriv-step">
+        $$\frac{\partial L}{\partial z_i}
+        =\sum_{k=1}^{K}\frac{\partial L}{\partial q_k}\frac{\partial q_k}{\partial z_i}
+        =\sum_{k=1}^{K}\left(-\frac{y_k}{q_k}\right)q_k(\delta_{ki}-q_i)
+        =-y_i+q_i\sum_{k=1}^{K}y_k
+        =q_i-y_i.$$
+      </div>
+      <p class="mb-4">
+        The last step uses $\sum_k y_k=1$, which is true because $y$ is one-hot. The $1/q_k$ from the log cancels the $q_k$ from the softmax Jacobian, leaving the residual. This is the multivariate version of the sigmoid cancellation.
+      </p>
+
+      <h3 class="font-sans-ui text-lg font-bold text-slate-800 mt-7 mb-3">
+        Properties worth remembering
+      </h3>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 my-5 font-sans-ui text-sm">
+        <div class="bg-white border border-slate-200 rounded-lg p-4">
+          <div class="text-xs font-bold uppercase tracking-wider text-rose-700 mb-1">The gradient sums to zero</div>
+          <p class="text-slate-600 text-xs leading-relaxed">$\sum_i(q_i-y_i)=\sum_i q_i-\sum_i y_i=1-1=0$. This reflects softmax shift invariance: adding a constant to every logit changes nothing, so the gradient has no component in the all-ones direction.</p>
+        </div>
+        <div class="bg-white border border-slate-200 rounded-lg p-4">
+          <div class="text-xs font-bold uppercase tracking-wider text-rose-700 mb-1">The true class is pushed up</div>
+          <p class="text-slate-600 text-xs leading-relaxed">For the true class $c$, $q_c-1&lt;0$, so gradient descent increases $z_c$. For every other class, $q_i-0&gt;0$, so gradient descent decreases $z_i$. The gap between the true logit and the rest grows.</p>
+        </div>
+        <div class="bg-white border border-slate-200 rounded-lg p-4">
+          <div class="text-xs font-bold uppercase tracking-wider text-rose-700 mb-1">The gradient is bounded</div>
+          <p class="text-slate-600 text-xs leading-relaxed">Each component lies in $(-1,1)$. Even if the model is confidently wrong, the gradient does not explode. The loss may be large, but the update direction remains well-behaved.</p>
+        </div>
+        <div class="bg-white border border-slate-200 rounded-lg p-4">
+          <div class="text-xs font-bold uppercase tracking-wider text-rose-700 mb-1">Binary logistic is the special case $K=2$</div>
+          <p class="text-slate-600 text-xs leading-relaxed">With logits $[z_0,z_1]$, $q_1=\sigma(z_1-z_0)$. The gradient with respect to $z_1$ is $q_1-y_1$, and with respect to $z_0$ is $-(q_1-y_1)$, which is the logistic gradient with $z=z_1-z_0$.</p>
+        </div>
+      </div>
+
+      <h3 class="font-sans-ui text-lg font-bold text-slate-800 mt-7 mb-3">
+        Worked example: three classes
+      </h3>
+      <p class="mb-4">
+        Let $z=[1,2,0]$ and let the true class be class $2$ (zero-indexed, so the third class). The exponentials are $e^1\approx2.7183$, $e^2\approx7.3891$, and $e^0=1$. Their sum is $11.1073$, so
+      </p>
+      <div class="math-block">
+        $$q\approx[0.2447,\,0.6652,\,0.0900].$$
+      </div>
+      <p class="mb-4">
+        The loss is $L=-\log(0.0900)\approx2.4076$. The gradient is
+      </p>
+      <div class="math-block-rose">
+        $$\frac{\partial L}{\partial z}=q-y
+        \approx[0.2447,\,0.6652,\,0.0900]-[0,0,1]
+        =[0.2447,\,0.6652,\,-0.9100].$$
+      </div>
+      <p class="mb-4">
+        The true class has a negative gradient, so its logit rises. The two wrong classes have positive gradients, so their logits fall. The components sum to approximately zero, as they must. If the model were perfect, $q=y$ and the gradient would be exactly zero.
+      </p>
+
+      <div class="olah-callout font-sans-ui text-sm text-slate-700">
+        <strong class="text-slate-900 block mb-1">Label smoothing and confidence</strong>
+        A one-hot target asks the model to drive $q_c$ all the way to $1$, which requires $z_c\to\infty$. Label smoothing replaces $y$ with $y^\varepsilon=(1-\varepsilon)y+\varepsilon/K$. The gradient becomes $q-y^\varepsilon$, so the model stops pushing once $q_c\approx1-\varepsilon+\varepsilon/K$. This caps confidence, improves calibration, and prevents the loss from diverging when the true class is extremely unlikely under the current model. The same formula applies to sample weights, as long as you keep track of the normalization.
+      </div>
+
+      <p class="mb-4">
+        For a neural network, the logits are produced by a final linear layer, $z=Wh+b$. The gradient with respect to $W$ is the outer product of the residual and the hidden activations:
+      </p>
+      <div class="math-block-teal">
+        $$\frac{\partial L}{\partial W}=(q-y)\,h^\top,
+        \qquad
+        \frac{\partial L}{\partial b}=q-y.$$
+      </div>
+      <p class="mb-4">
+        For a batch, average the outer products. This is exactly the same structure as the logistic case, with the scalar residual $p-y$ replaced by the vector residual $q-y$. Part II of these notes derives the softmax Jacobian, temperature scaling, and the log-sum-exp trick in more detail; here the goal is to see it as one more log-likelihood gradient.
+      </p>
+    </section>
+
+    <!-- SECTION 7 -->
+    <section id="sec-7" class="mb-14 scroll-mt-16">
+      <div class="flex items-center gap-2 font-sans-ui text-xs font-bold uppercase tracking-wider text-rose-800 mb-1">
+        <span>Section 07</span>
+        <span>&middot;</span>
+        <span class="text-slate-400">The pattern</span>
+      </div>
+      <h2 class="font-sans-ui text-2xl font-bold text-slate-900 mb-4">
+        7. The Unified View: Observed Minus Expected
+      </h2>
+
+      <p class="mb-4">
+        We have derived three gradients that look different but behave the same way. Here they are side by side:
+      </p>
+
+      <div class="bg-white border border-[#e5e2dc] rounded-lg overflow-hidden my-6 shadow-sm">
+        <table class="olah-table">
+          <thead>
+            <tr>
+              <th>Model</th>
+              <th>Log-likelihood $\log p$</th>
+              <th>NLL gradient</th>
+              <th>Parameter gradient</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="font-semibold text-slate-800">Bernoulli<br><span class="text-xs font-normal text-slate-500">$p=\sigma(z)$</span></td>
+              <td>$yz-\log(1+e^z)$</td>
+              <td class="font-mono-code text-rose-700">$p-y$</td>
+              <td>$(p-y)x$ for $w$; $p-y$ for $b$</td>
+            </tr>
+            <tr>
+              <td class="font-semibold text-slate-800">Gaussian<br><span class="text-xs font-normal text-slate-500">fixed $\sigma^2$</span></td>
+              <td>$-\frac12\log(2\pi\sigma^2)-\frac{(x-\mu)^2}{2\sigma^2}$</td>
+              <td class="font-mono-code text-rose-700">$(\mu-x)/\sigma^2$</td>
+              <td>$(\mu-x)/\sigma^2$ for $\mu$</td>
+            </tr>
+            <tr>
+              <td class="font-semibold text-slate-800">Categorical<br><span class="text-xs font-normal text-slate-500">$q=\operatorname{softmax}(z)$</span></td>
+              <td>$z_y-\log\sum_j e^{z_j}$</td>
+              <td class="font-mono-code text-rose-700">$q-y$</td>
+              <td>$(q-y)h^\top$ for $W$; $q-y$ for $b$</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p class="mb-4">
+        In every row, the gradient is a <strong>residual</strong>: a prediction minus a target, or a target minus a prediction. The sign depends on whether you differentiated the log-likelihood or the NLL, and on which parameter you chose. The magnitude depends on the model's precision. The structure is universal.
+      </p>
+
+      <h3 class="font-sans-ui text-lg font-bold text-slate-800 mt-7 mb-3">
+        Why the pattern repeats: exponential families
+      </h3>
+      <p class="mb-4">
+        The three models are all members of the <strong>exponential family</strong>. A member of this family can be written as
+      </p>
+      <div class="math-block">
+        $$p(x\mid\eta)=h(x)\exp\!\big(\eta^\top T(x)-A(\eta)\big),$$
+      </div>
+      <p class="mb-4">
+        where $\eta$ is the <strong>natural parameter</strong>, $T(x)$ is a <strong>sufficient statistic</strong>, $A(\eta)$ is the <strong>log-partition function</strong>, and $h(x)$ is a base measure that does not depend on $\eta$. Taking the log gives
+      </p>
+      <div class="math-block-teal">
+        $$\log p(x\mid\eta)=\eta^\top T(x)-A(\eta)+\log h(x).$$
+      </div>
+      <p class="mb-4">
+        Differentiate with respect to $\eta$. The term $\log h(x)$ disappears, and the derivative of $A(\eta)$ is the expected sufficient statistic:
+      </p>
+      <div class="deriv-step">
+        $$\nabla_\eta\log p(x\mid\eta)=T(x)-\nabla_\eta A(\eta)
+        =T(x)-\mathbb{E}_{p}[T(X)].$$
+      </div>
+      <div class="deriv-step-highlight">
+        $$\boxed{\;\nabla_\eta\,\text{NLL}=\mathbb{E}_{p}[T(X)]-T(x)\;}$$
+      </div>
+      <p class="mb-4">
+        This is the sentence from the beginning of the notes, now proved: <strong>the NLL gradient is expected minus observed.</strong> The model compares what it expected to see with what it actually saw, and moves its parameters to close the gap.
+      </p>
+
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 my-5 font-sans-ui text-sm">
+        <div class="bg-white border border-slate-200 rounded-lg p-4">
+          <div class="text-xs font-bold uppercase tracking-wider text-blue-700 mb-1">Bernoulli</div>
+          <p class="text-slate-600 text-xs leading-relaxed">$T(x)=x$, $\eta=z$, $\mathbb{E}[T]=p$. NLL gradient $p-y$. The observed statistic is the label; the expected statistic is the predicted probability.</p>
+        </div>
+        <div class="bg-white border border-slate-200 rounded-lg p-4">
+          <div class="text-xs font-bold uppercase tracking-wider text-blue-700 mb-1">Gaussian</div>
+          <p class="text-slate-600 text-xs leading-relaxed">$T(x)=x$, $\eta=\mu/\sigma^2$, $\mathbb{E}[T]=\mu$. NLL gradient $\mu-x$ in natural coordinates; chain rule by $1/\sigma^2$ gives $(\mu-x)/\sigma^2$.</p>
+        </div>
+        <div class="bg-white border border-slate-200 rounded-lg p-4">
+          <div class="text-xs font-bold uppercase tracking-wider text-blue-700 mb-1">Categorical</div>
+          <p class="text-slate-600 text-xs leading-relaxed">$T(x)$ is the one-hot vector, $\eta=z$, $\mathbb{E}[T]=q$. NLL gradient $q-y$. The observed statistic is the one-hot label; the expected statistic is the softmax vector.</p>
+        </div>
+      </div>
+
+      <p class="mb-4">
+        The log-partition function $A(\eta)$ is the cumulant generating function of $T(X)$: its gradient is the mean, and its Hessian is the covariance. That Hessian is the Fisher information. This is why the curvature of the NLL and the variance of the score are the same object. For Bernoulli, $A(z)=\log(1+e^z)$, $A'(z)=p$, and $A''(z)=p(1-p)$. For categorical, $A(z)=\log\sum_j e^{z_j}$, $\nabla A=q$, and $\nabla^2A=\operatorname{diag}(q)-qq^\top$. The algebra keeps folding back on itself because it is all one family.
+      </p>
+
+      <h3 class="font-sans-ui text-lg font-bold text-slate-800 mt-7 mb-3">
+        Backpropagation: where the cancellation happens
+      </h3>
+      <p class="mb-4">
+        A computation graph for logistic regression looks like this:
+      </p>
+      <div class="bg-white border border-slate-200 rounded-lg p-5 my-5 font-mono-code text-xs text-slate-700 overflow-x-auto">
+        <div class="flex flex-wrap items-center gap-2 justify-center">
+          <span class="px-2.5 py-1.5 bg-slate-100 rounded border border-slate-200">$x,w,b$</span>
+          <span class="text-slate-400">&rarr;</span>
+          <span class="px-2.5 py-1.5 bg-blue-50 rounded border border-blue-200">$z=w^\top x+b$</span>
+          <span class="text-slate-400">&rarr;</span>
+          <span class="px-2.5 py-1.5 bg-teal-50 rounded border border-teal-200">$p=\sigma(z)$</span>
+          <span class="text-slate-400">&rarr;</span>
+          <span class="px-2.5 py-1.5 bg-rose-50 rounded border border-rose-200">$L=\operatorname{BCE}(p,y)$</span>
+        </div>
+      </div>
+      <p class="mb-4">
+        Backprop computes the upstream gradient $\partial L/\partial p$, multiplies by the local sigmoid derivative $\partial p/\partial z=p(1-p)$, and passes the result to the linear layer. The intermediate factors can be large and small, but their product is $p-y$. A naive implementation that stores $\partial L/\partial p$ and then multiplies by a numerically zero $p(1-p)$ loses precision; a fused implementation computes $p-y$ directly from the logit.
+      </p>
+      <div class="bg-white border border-[#e5e2dc] rounded-lg overflow-hidden my-6 shadow-sm">
+        <table class="olah-table">
+          <thead>
+            <tr>
+              <th>Node</th>
+              <th>Local derivative</th>
+              <th>What it does</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="font-semibold text-slate-800">Sigmoid</td>
+              <td>$\partial p/\partial z=p(1-p)$</td>
+              <td>Shrinks the gradient near saturation.</td>
+            </tr>
+            <tr>
+              <td class="font-semibold text-slate-800">BCE</td>
+              <td>$\partial L/\partial p=(p-y)/(p(1-p))$</td>
+              <td>Grows the gradient near saturation.</td>
+            </tr>
+            <tr class="bg-rose-50/40">
+              <td class="font-semibold text-rose-900">Product</td>
+              <td>$\partial L/\partial z=p-y$</td>
+              <td>The two singularities cancel exactly.</td>
+            </tr>
+            <tr>
+              <td class="font-semibold text-slate-800">Softmax</td>
+              <td>$\partial q_k/\partial z_i=q_k(\delta_{ki}-q_i)$</td>
+              <td>Couples all classes through the normalizer.</td>
+            </tr>
+            <tr class="bg-rose-50/40">
+              <td class="font-semibold text-rose-900">CE + softmax</td>
+              <td>$\partial L/\partial z_i=q_i-y_i$</td>
+              <td>The Jacobian and the $1/q$ cancel.</td>
+            </tr>
+            <tr>
+              <td class="font-semibold text-slate-800">Gaussian mean</td>
+              <td>$\partial L/\partial\mu=(\mu-x)/\sigma^2$</td>
+              <td>No link nonlinearity; the precision sets the scale.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3 class="font-sans-ui text-lg font-bold text-slate-800 mt-7 mb-3">
+        Regularization is a prior in disguise
+      </h3>
+      <p class="mb-4">
+        The likelihood story has a Bayesian sequel. If you add an L2 penalty $\lambda\|w\|^2/2$ to the NLL, you are doing maximum a posteriori (MAP) estimation with a Gaussian prior $w\sim\mathcal{N}(0,1/\lambda)$. The gradient gains a term $\lambda w$, which pulls the weights toward zero. Weight decay is not an ad hoc trick; it is the log-prior of a zero-mean Gaussian. L1 regularization corresponds to a Laplace prior and produces sparsity. This is another place where "write the log-probability, then differentiate" pays off.
+      </p>
+      <div class="olah-callout font-sans-ui text-sm text-slate-700">
+        <strong class="text-slate-900 block mb-1">What to remember from the unification</strong>
+        If you can write $\log p$ for a model, you can derive its training gradient. The exponential-family pattern tells you what to expect: a residual between the observed sufficient statistic and its expected value. The chain rule then converts that residual into gradients for whatever parameters you actually use. You do not need to memorize three separate formulas; you need to remember one pattern and the Jacobian of each link.
+      </div>
+    </section>
+
+    <!-- SECTION 8 -->
+    <section id="sec-8" class="mb-14 scroll-mt-16">
+      <div class="flex items-center gap-2 font-sans-ui text-xs font-bold uppercase tracking-wider text-rose-800 mb-1">
+        <span>Section 08</span>
+        <span>&middot;</span>
+        <span class="text-slate-400">Implementation</span>
+      </div>
+      <h2 class="font-sans-ui text-2xl font-bold text-slate-900 mb-4">
+        8. Numerical Stability: Compute the Gradient Without Blowing Up
+      </h2>
+
+      <p class="mb-4">
+        The formulas are exact in real arithmetic. In floating point, the naive versions can overflow, underflow, or produce $0\cdot\infty$. The fix is not to clip aggressively; it is to rewrite the same mathematical object in a form that never evaluates a huge exponential or a logarithm of zero.
+      </p>
+
+      <h3 class="font-sans-ui text-lg font-bold text-slate-800 mt-7 mb-3">
+        Stable binary cross-entropy with logits
+      </h3>
+      <p class="mb-4">
+        The unstable version computes $p=\sigma(z)$ and then $\log p$ or $\log(1-p)$. When $z=1000$, $p$ rounds to $1$, and $\log(1-p)$ becomes $\log(0)=-\infty$. When $z=-1000$, the mirror image happens. The stable version uses the softplus identity:
+      </p>
+      <div class="math-block-teal">
+        $$\log(1+e^z)=\max(z,0)+\log\!\left(1+e^{-|z|}\right).$$
+      </div>
+      <p class="mb-4">
+        Therefore
+      </p>
+      <div class="math-block-rose">
+        $$L(z,y)=\max(z,0)-yz+\log\!\left(1+e^{-|z|}\right).$$
+      </div>
+      <p class="mb-4">
+        The exponent is now always negative or zero, so $e^{-|z|}\in(0,1]$ and the logarithm is finite. At $z=1000$, $y=1$, the first two terms cancel to zero and the last term is negligible; the loss is $0$, as it should be. At $z=1000$, $y=0$, the loss is $1000$, which is large but finite and correct.
+      </p>
+      <p class="mb-4">
+        The gradient is still $p-y$. To compute $p$ stably, use the piecewise sigmoid:
+      </p>
+      <div class="code-block">
+<span class="comment"># Stable sigmoid: never exponentiate a large positive number</span>
+<span class="kw">def</span> <span class="fn">sigmoid</span>(z):
+    <span class="kw">if</span> z &gt;= 0:
+        <span class="kw">return</span> 1.0 / (1.0 + math.exp(-z))
+    ez = math.exp(z)
+    <span class="kw">return</span> ez / (1.0 + ez)
+
+<span class="comment"># Stable BCE with logits</span>
+<span class="kw">def</span> <span class="fn">bce_with_logits</span>(z, y):
+    <span class="kw">return</span> max(z, 0.0) - y * z + math.log1p(math.exp(-abs(z)))
+      </div>
+
+      <p class="mb-4">
+        In PyTorch, use the fused functions. They take <strong>logits</strong>, not probabilities, and they compute the stable form internally:
+      </p>
+      <div class="code-block">
+<span class="comment"># z: raw logits, shape (N,)</span>
+<span class="comment"># y: float labels in {0, 1}, shape (N,)</span>
+loss = F.<span class="fn">binary_cross_entropy_with_logits</span>(z, y)
+
+<span class="comment"># K-class logits, integer labels</span>
+<span class="comment"># logits: shape (N, K), targets: shape (N,)</span>
+loss = F.<span class="fn">cross_entropy</span>(logits, targets)
+      </div>
+
+      <div class="olah-callout-rose font-sans-ui text-sm text-slate-700">
+        <strong class="text-rose-900 block mb-1">Do not do this</strong>
+        <div class="font-mono-code text-xs bg-white border border-rose-200 rounded p-3 mt-1 overflow-x-auto">
+          p = torch.sigmoid(z)<br>
+          loss = -(y * torch.log(p) + (1 - y) * torch.log(1 - p))
+        </div>
+        <p class="mt-2 text-xs">It looks like the textbook formula, but it produces NaNs when the model is confident and wrong&mdash;exactly the case you care about. Clipping $p$ to $[10^{-7},1-10^{-7}]$ avoids the NaN but distorts the gradient and hides saturation. Use the logit form instead.</p>
+      </div>
+
+      <h3 class="font-sans-ui text-lg font-bold text-slate-800 mt-7 mb-3">
+        Stable log-softmax
+      </h3>
+      <p class="mb-4">
+        Softmax is shift-invariant, so subtract the maximum logit before exponentiating:
+      </p>
+      <div class="math-block">
+        $$\operatorname{log\_softmax}(z)_i
+        =z_i-m-\log\sum_{j=1}^{K}e^{z_j-m},
+        \qquad m=\max_j z_j.$$
+      </div>
+      <p class="mb-4">
+        Every exponent is now $\le0$, so there is no overflow. The cross-entropy is simply the negative log-softmax at the true class:
+      </p>
+      <div class="math-block-teal">
+        $$L=-\operatorname{log\_softmax}(z)_y.$$
+      </div>
+      <p class="mb-4">
+        If you compute softmax first and then take the log, you lose the stability and may hit $\log(0)$. If you compute cross-entropy from probabilities, you also lose the fused gradient. Keep the logits.
+      </p>
+
+      <h3 class="font-sans-ui text-lg font-bold text-slate-800 mt-7 mb-3">
+        Stable Gaussian NLL
+      </h3>
+      <p class="mb-4">
+        Parameterize the standard deviation as $\sigma=e^{s}$ so that it is always positive. Then
+      </p>
+      <div class="code-block">
+<span class="comment"># mu, log_sigma: model outputs; x: target</span>
+sigma = torch.<span class="fn">exp</span>(log_sigma)
+nll = 0.5 * ((x - mu) / sigma) ** 2 + log_sigma + 0.5 * math.log(2 * math.pi)
+      </div>
+      <p class="mb-4">
+        The residual is divided by $\sigma$ before squaring, which is safer than squaring a huge residual and then dividing by a tiny variance. The $\log\sigma$ term is the log-Jacobian of the positive parameterization; it is not optional. If you parameterize $\sigma^2$ directly, use a softplus or an exponential and apply the chain rule.
+      </p>
+
+      <h3 class="font-sans-ui text-lg font-bold text-slate-800 mt-7 mb-3">
+        Reduction, batching, and gradient checking
+      </h3>
+      <p class="mb-4">
+        The choice between sum and mean changes the gradient scale. If $J_{\text{sum}}=\sum_i L_i$, then $\nabla J_{\text{sum}}=\sum_i\nabla L_i$. If $J_{\text{mean}}=J_{\text{sum}}/N$, then $\nabla J_{\text{mean}}=\nabla J_{\text{sum}}/N$. A learning rate tuned for a sum will be wrong for a mean by a factor of $N$. The same issue appears with class weights and masks: decide whether you are normalizing by the number of examples or the sum of weights, and be consistent between the forward and backward passes.
+      </p>
+      <p class="mb-4">
+        For gradient checking, use a central finite difference in double precision:
+      </p>
+      <div class="math-block">
+        $$\frac{\partial L}{\partial\theta}
+        \approx\frac{L(\theta+\epsilon)-L(\theta-\epsilon)}{2\epsilon},
+        \qquad \epsilon\approx10^{-6}.$$
+      </div>
+      <p class="mb-4">
+        Compare the relative error, not the absolute error. A relative error below $10^{-5}$ is usually fine for a well-conditioned check; near saturation or with very small probabilities, expect larger errors. Remember that the finite difference checks the NLL gradient, so its sign is opposite to the log-likelihood gradient.
+      </p>
+
+      <h3 class="font-sans-ui text-lg font-bold text-slate-800 mt-7 mb-3">
+        Common pitfalls
+      </h3>
+      <div class="bg-white border border-[#e5e2dc] rounded-lg overflow-hidden my-6 shadow-sm">
+        <table class="olah-table">
+          <thead>
+            <tr>
+              <th>Symptom</th>
+              <th>Likely cause</th>
+              <th>Fix</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Gradient has the wrong sign</td>
+              <td>Differentiated log-likelihood instead of NLL</td>
+              <td>Log-likelihood: $y-p$. NLL: $p-y$.</td>
+            </tr>
+            <tr>
+              <td>Loss is NaN at large logits</td>
+              <td>$\log(\sigma(z))$ or $\log(\operatorname{softmax}(z))$</td>
+              <td>Use <code class="font-mono-code text-xs">binary_cross_entropy_with_logits</code> or <code class="font-mono-code text-xs">cross_entropy</code>.</td>
+            </tr>
+            <tr>
+              <td>Learning rate suddenly wrong</td>
+              <td>Switched from sum to mean reduction, or changed $\sigma^2$</td>
+              <td>Rescale the learning rate or normalize the loss.</td>
+            </tr>
+            <tr>
+              <td>Model learns slowly when confidently wrong</td>
+              <td>MSE with a sigmoid or softmax</td>
+              <td>Use cross-entropy / NLL with logits.</td>
+            </tr>
+            <tr>
+              <td>Variance collapses to zero</td>
+              <td>Learned Gaussian without a log-variance term or regularization</td>
+              <td>Use $\log\sigma$ and a proper prior; check for degenerate data.</td>
+            </tr>
+            <tr>
+              <td>Softmax gradient does not sum to zero</td>
+              <td>Numerical error or a missing normalization</td>
+              <td>Check that $q$ sums to one and $y$ is one-hot.</td>
+            </tr>
+            <tr>
+              <td>Gradient check fails only near saturation</td>
+              <td>Finite-difference step too large relative to curvature</td>
+              <td>Use double precision and a smaller $\epsilon$; check relative error.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- SECTION 9 -->
+    <section id="sec-9" class="mb-14 scroll-mt-16">
+      <div class="flex items-center gap-2 font-sans-ui text-xs font-bold uppercase tracking-wider text-rose-800 mb-1">
+        <span>Section 09</span>
+        <span>&middot;</span>
+        <span class="text-slate-400">Practice</span>
+      </div>
+      <h2 class="font-sans-ui text-2xl font-bold text-slate-900 mb-4">
+        9. Practice: Derive, Compute, and Debug
+      </h2>
+      <p class="mb-4">
+        Work these with a pencil before revealing the solutions. The goal is not to plug into formulas, but to practice the pattern: write the log-likelihood, differentiate, and interpret the sign.
+      </p>
+
+      <!-- Practice 1 -->
+      <div class="practice-card" id="practice-1">
+        <div class="font-sans-ui">
+          <div class="text-[11px] font-bold text-rose-700 uppercase tracking-wider mb-2">Practice 1 of 6 &middot; Logistic gradient</div>
+          <p class="text-sm text-slate-800 mb-3">
+            A logistic model has $x=2$, $w=-1$, $b=0.5$, and label $y=0$. Compute $\partial L/\partial w$ for the single-example NLL. Use natural logarithms.
+          </p>
+          <div class="flex flex-wrap items-center gap-3 mb-3">
+            <input type="text" id="p1-input" placeholder="Enter your answer (e.g. 0.365)" class="border border-slate-300 rounded px-3 py-1.5 text-sm font-mono-code w-52 focus:ring-2 focus:ring-rose-300 focus:border-rose-400 outline-none">
+            <button type="button" id="p1-check" class="text-xs px-3 py-1.5 rounded bg-rose-600 hover:bg-rose-700 text-white font-medium transition">Check answer</button>
+            <button type="button" id="p1-hint-btn" class="text-xs px-3 py-1.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium transition">Show hint</button>
+          </div>
+          <div id="p1-result" class="text-sm font-medium mb-2"></div>
+          <div id="p1-hint" class="hint-reveal">
+            <div class="bg-amber-50 border border-amber-200 rounded p-3 text-xs text-amber-900">
+              <strong>Hint:</strong> First compute $z=wx+b$, then $p=\sigma(z)$. The chain is $\partial L/\partial w=(\partial L/\partial z)(\partial z/\partial w)=(p-y)x$.
+            </div>
+          </div>
+          <div id="p1-answer" class="answer-reveal">
+            <div class="bg-teal-50 border border-teal-200 rounded p-3 text-xs text-teal-900 mt-2">
+              <strong>Solution:</strong> $z=(-1)(2)+0.5=-1.5$. Then $p=\sigma(-1.5)=1/(1+e^{1.5})\approx0.1824$. The logit gradient is $p-y=0.1824-0=0.1824$. Finally, $\partial L/\partial w=(0.1824)(2)\approx0.3649$. The positive sign means gradient descent should decrease $w$; decreasing $w$ makes $z$ more negative and pushes $p$ closer to the correct label $0$.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Practice 2 -->
+      <div class="practice-card" id="practice-2">
+        <div class="font-sans-ui">
+          <div class="text-[11px] font-bold text-rose-700 uppercase tracking-wider mb-2">Practice 2 of 6 &middot; Conceptual</div>
+          <p class="text-sm text-slate-800 mb-3">
+            A logistic model has $p=0.01$ and $y=1$. Which statement best explains why BCE produces a much larger gradient than squared error with a sigmoid?
+          </p>
+          <div class="space-y-2 mb-3">
+            <label class="flex items-start gap-2 cursor-pointer">
+              <input type="radio" name="q2" value="a" class="mt-1">
+              <span class="text-sm text-slate-700">The BCE gradient is $p-y\approx-0.99$; MSE adds the factor $p(1-p)\approx0.0099$, shrinking the gradient to about $-0.0098$.</span>
+            </label>
+            <label class="flex items-start gap-2 cursor-pointer">
+              <input type="radio" name="q2" value="b" class="mt-1">
+              <span class="text-sm text-slate-700">BCE is always zero when the model is wrong.</span>
+            </label>
+            <label class="flex items-start gap-2 cursor-pointer">
+              <input type="radio" name="q2" value="c" class="mt-1">
+              <span class="text-sm text-slate-700">MSE cannot be differentiated through a sigmoid.</span>
+            </label>
+            <label class="flex items-start gap-2 cursor-pointer">
+              <input type="radio" name="q2" value="d" class="mt-1">
+              <span class="text-sm text-slate-700">BCE uses base-10 logarithms, which are larger.</span>
+            </label>
+          </div>
+          <div class="flex gap-3 mb-3">
+            <button type="button" id="p2-check" class="text-xs px-3 py-1.5 rounded bg-rose-600 hover:bg-rose-700 text-white font-medium transition">Check answer</button>
+            <button type="button" id="p2-hint-btn" class="text-xs px-3 py-1.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium transition">Show hint</button>
+          </div>
+          <div id="p2-result" class="text-sm font-medium mb-2"></div>
+          <div id="p2-hint" class="hint-reveal">
+            <div class="bg-amber-50 border border-amber-200 rounded p-3 text-xs text-amber-900">
+              <strong>Hint:</strong> Write both gradients with respect to the logit. BCE gives $p-y$. MSE gives $(p-y)p(1-p)$. At $p=0.01$, the extra factor is small.
+            </div>
+          </div>
+          <div id="p2-answer" class="answer-reveal">
+            <div class="bg-teal-50 border border-teal-200 rounded p-3 text-xs text-teal-900 mt-2">
+              <strong>Answer: (a).</strong> The sigmoid is saturated near $p=0$, so its derivative $p(1-p)$ is tiny. MSE multiplies by that tiny factor and loses the error signal. BCE's log cancels the saturation and leaves the bounded residual $p-y$.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Practice 3 -->
+      <div class="practice-card" id="practice-3">
+        <div class="font-sans-ui">
+          <div class="text-[11px] font-bold text-rose-700 uppercase tracking-wider mb-2">Practice 3 of 6 &middot; Gaussian gradient</div>
+          <p class="text-sm text-slate-800 mb-3">
+            A Gaussian model has observation $x=5$, mean $\mu=3$, and standard deviation $\sigma=2$. Compute $\partial L/\partial\mu$ for the NLL.
+          </p>
+          <div class="flex flex-wrap items-center gap-3 mb-3">
+            <input type="text" id="p3-input" placeholder="Enter your answer (e.g. -0.5)" class="border border-slate-300 rounded px-3 py-1.5 text-sm font-mono-code w-52 focus:ring-2 focus:ring-rose-300 focus:border-rose-400 outline-none">
+            <button type="button" id="p3-check" class="text-xs px-3 py-1.5 rounded bg-rose-600 hover:bg-rose-700 text-white font-medium transition">Check answer</button>
+            <button type="button" id="p3-hint-btn" class="text-xs px-3 py-1.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium transition">Show hint</button>
+          </div>
+          <div id="p3-result" class="text-sm font-medium mb-2"></div>
+          <div id="p3-hint" class="hint-reveal">
+            <div class="bg-amber-50 border border-amber-200 rounded p-3 text-xs text-amber-900">
+              <strong>Hint:</strong> $\partial L/\partial\mu=(\mu-x)/\sigma^2$. The variance is $\sigma^2=4$, not $2$.
+            </div>
+          </div>
+          <div id="p3-answer" class="answer-reveal">
+            <div class="bg-teal-50 border border-teal-200 rounded p-3 text-xs text-teal-900 mt-2">
+              <strong>Solution:</strong> $\sigma^2=4$, so $\partial L/\partial\mu=(3-5)/4=-0.5$. The negative sign means gradient descent increases $\mu$ toward the observation $5$. For reference, the NLL is $\tfrac12\log(8\pi)+4/8\approx2.112$.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Practice 4 -->
+      <div class="practice-card" id="practice-4">
+        <div class="font-sans-ui">
+          <div class="text-[11px] font-bold text-rose-700 uppercase tracking-wider mb-2">Practice 4 of 6 &middot; Softmax gradient</div>
+          <p class="text-sm text-slate-800 mb-3">
+            A 3-class softmax model has logits $z=[1,2,0]$ and true class $2$ (zero-indexed). Compute $\partial L/\partial z_2$.
+          </p>
+          <div class="flex flex-wrap items-center gap-3 mb-3">
+            <input type="text" id="p4-input" placeholder="Enter your answer (e.g. -0.91)" class="border border-slate-300 rounded px-3 py-1.5 text-sm font-mono-code w-52 focus:ring-2 focus:ring-rose-300 focus:border-rose-400 outline-none">
+            <button type="button" id="p4-check" class="text-xs px-3 py-1.5 rounded bg-rose-600 hover:bg-rose-700 text-white font-medium transition">Check answer</button>
+            <button type="button" id="p4-hint-btn" class="text-xs px-3 py-1.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium transition">Show hint</button>
+          </div>
+          <div id="p4-result" class="text-sm font-medium mb-2"></div>
+          <div id="p4-hint" class="hint-reveal">
+            <div class="bg-amber-50 border border-amber-200 rounded p-3 text-xs text-amber-900">
+              <strong>Hint:</strong> Compute $q=\operatorname{softmax}(z)$ first. The true class has $y_2=1$, so $\partial L/\partial z_2=q_2-1$.
+            </div>
+          </div>
+          <div id="p4-answer" class="answer-reveal">
+            <div class="bg-teal-50 border border-teal-200 rounded p-3 text-xs text-teal-900 mt-2">
+              <strong>Solution:</strong> The exponentials are $[e, e^2, 1]\approx[2.718,7.389,1]$, with sum $11.107$. Thus $q_2\approx1/11.107\approx0.0900$. Then $\partial L/\partial z_2=q_2-1\approx-0.9100$. The full gradient is approximately $[0.2447,0.6652,-0.9100]$, which sums to zero.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Practice 5 -->
+      <div class="practice-card" id="practice-5">
+        <div class="font-sans-ui">
+          <div class="text-[11px] font-bold text-rose-700 uppercase tracking-wider mb-2">Practice 5 of 6 &middot; Batch gradient</div>
+          <p class="text-sm text-slate-800 mb-3">
+            Three logistic examples have predictions $p=[0.9,0.2,0.6]$, labels $y=[1,0,1]$, and inputs $x=[1,2,-1]$. For the mean NLL, compute $\partial J/\partial w$.
+          </p>
+          <div class="flex flex-wrap items-center gap-3 mb-3">
+            <input type="text" id="p5-input" placeholder="Enter your answer (e.g. 0.233)" class="border border-slate-300 rounded px-3 py-1.5 text-sm font-mono-code w-52 focus:ring-2 focus:ring-rose-300 focus:border-rose-400 outline-none">
+            <button type="button" id="p5-check" class="text-xs px-3 py-1.5 rounded bg-rose-600 hover:bg-rose-700 text-white font-medium transition">Check answer</button>
+            <button type="button" id="p5-hint-btn" class="text-xs px-3 py-1.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium transition">Show hint</button>
+          </div>
+          <div id="p5-result" class="text-sm font-medium mb-2"></div>
+          <div id="p5-hint" class="hint-reveal">
+            <div class="bg-amber-50 border border-amber-200 rounded p-3 text-xs text-amber-900">
+              <strong>Hint:</strong> Compute the residual vector $p-y$, multiply elementwise by $x$, then average over the three examples: $\partial J/\partial w=\frac1N\sum_i(p_i-y_i)x_i$.
+            </div>
+          </div>
+          <div id="p5-answer" class="answer-reveal">
+            <div class="bg-teal-50 border border-teal-200 rounded p-3 text-xs text-teal-900 mt-2">
+              <strong>Solution:</strong> $p-y=[-0.1,0.2,-0.4]$. Multiply by $x$: $[-0.1,0.4,0.4]$. Average: $(-0.1+0.4+0.4)/3=0.7/3\approx0.2333$. The positive gradient means gradient descent should decrease $w$. The mean NLL itself is $\frac13[-\log(0.9)-\log(0.8)-\log(0.6)]\approx0.2798$.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Practice 6 -->
+      <div class="practice-card" id="practice-6">
+        <div class="font-sans-ui">
+          <div class="text-[11px] font-bold text-rose-700 uppercase tracking-wider mb-2">Practice 6 of 6 &middot; Implementation</div>
+          <p class="text-sm text-slate-800 mb-3">
+            Which expression is the numerically stable way to compute binary cross-entropy from a logit $z$ and label $y\in\{0,1\}$?
+          </p>
+          <div class="space-y-2 mb-3">
+            <label class="flex items-start gap-2 cursor-pointer">
+              <input type="radio" name="q6" value="a" class="mt-1">
+              <span class="text-sm text-slate-700">$-[y\log\sigma(z)+(1-y)\log(1-\sigma(z))]$</span>
+            </label>
+            <label class="flex items-start gap-2 cursor-pointer">
+              <input type="radio" name="q6" value="b" class="mt-1">
+              <span class="text-sm text-slate-700">$\max(z,0)-yz+\log(1+e^{-|z|})$</span>
+            </label>
+            <label class="flex items-start gap-2 cursor-pointer">
+              <input type="radio" name="q6" value="c" class="mt-1">
+              <span class="text-sm text-slate-700">$\log(1+e^z)-yz$ with a naive exponential</span>
+            </label>
+            <label class="flex items-start gap-2 cursor-pointer">
+              <input type="radio" name="q6" value="d" class="mt-1">
+              <span class="text-sm text-slate-700">Clip $\sigma(z)$ to $[10^{-7},1-10^{-7}]$, then take logs</span>
+            </label>
+          </div>
+          <div class="flex gap-3 mb-3">
+            <button type="button" id="p6-check" class="text-xs px-3 py-1.5 rounded bg-rose-600 hover:bg-rose-700 text-white font-medium transition">Check answer</button>
+            <button type="button" id="p6-hint-btn" class="text-xs px-3 py-1.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium transition">Show hint</button>
+          </div>
+          <div id="p6-result" class="text-sm font-medium mb-2"></div>
+          <div id="p6-hint" class="hint-reveal">
+            <div class="bg-amber-50 border border-amber-200 rounded p-3 text-xs text-amber-900">
+              <strong>Hint:</strong> Use the identity $\log(1+e^z)=\max(z,0)+\log(1+e^{-|z|})$. The exponent should never be a large positive number.
+            </div>
+          </div>
+          <div id="p6-answer" class="answer-reveal">
+            <div class="bg-teal-50 border border-teal-200 rounded p-3 text-xs text-teal-900 mt-2">
+              <strong>Answer: (b).</strong> This is the softplus form with a negative exponent, so it never overflows. Option (a) can hit $\log(0)$; option (c) overflows for large $z$; option (d) avoids NaN but distorts the gradient and hides saturation. In practice, use a fused library function.
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 10 -->
+    <section id="sec-10" class="mb-14 scroll-mt-16">
+      <div class="flex items-center gap-2 font-sans-ui text-xs font-bold uppercase tracking-wider text-rose-800 mb-1">
+        <span>Section 10</span>
+        <span>&middot;</span>
+        <span class="text-slate-400">Cheat sheet</span>
+      </div>
+      <h2 class="font-sans-ui text-2xl font-bold text-slate-900 mb-4">
+        10. Summary, Cheat Sheet, and What to Remember
+      </h2>
+
+      <div class="bg-white border border-[#e5e2dc] rounded-lg overflow-hidden my-6 shadow-sm">
+        <table class="olah-table">
+          <thead>
+            <tr>
+              <th>Quantity</th>
+              <th>Bernoulli / logistic</th>
+              <th>Gaussian (fixed $\sigma^2$)</th>
+              <th>Categorical / softmax</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="font-semibold text-slate-800">Prediction</td>
+              <td>$p=\sigma(z)$</td>
+              <td>$\mu$</td>
+              <td>$q=\operatorname{softmax}(z)$</td>
+            </tr>
+            <tr>
+              <td class="font-semibold text-slate-800">Log-likelihood</td>
+              <td>$yz-\log(1+e^z)$</td>
+              <td>$-\frac12\log(2\pi\sigma^2)-\frac{(x-\mu)^2}{2\sigma^2}$</td>
+              <td>$z_y-\log\sum_j e^{z_j}$</td>
+            </tr>
+            <tr>
+              <td class="font-semibold text-slate-800">NLL</td>
+              <td>$\log(1+e^z)-yz$</td>
+              <td>$\frac12\log(2\pi\sigma^2)+\frac{(x-\mu)^2}{2\sigma^2}$</td>
+              <td>$-z_y+\log\sum_j e^{z_j}$</td>
+            </tr>
+            <tr class="bg-rose-50/40">
+              <td class="font-semibold text-rose-900">Gradient wrt natural parameter</td>
+              <td class="font-mono-code text-rose-700">$p-y$</td>
+              <td class="font-mono-code text-rose-700">$(\mu-x)/\sigma^2$</td>
+              <td class="font-mono-code text-rose-700">$q-y$</td>
+            </tr>
+            <tr>
+              <td class="font-semibold text-slate-800">Gradient wrt weights</td>
+              <td>$(p-y)x$</td>
+              <td>—</td>
+              <td>$(q-y)h^\top$</td>
+            </tr>
+            <tr>
+              <td class="font-semibold text-slate-800">MLE</td>
+              <td>empirical log-odds</td>
+              <td>$\hat\mu=\bar{x}$</td>
+              <td>empirical class frequencies</td>
+            </tr>
+            <tr>
+              <td class="font-semibold text-slate-800">Curvature / Fisher info</td>
+              <td>$p(1-p)$</td>
+              <td>$1/\sigma^2$</td>
+              <td>$\operatorname{diag}(q)-qq^\top$</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="olah-callout-teal font-sans-ui text-sm text-slate-700">
+        <strong class="text-teal-900 block mb-1">The one-sentence version</strong>
+        A negative log-likelihood gradient is the <strong>expected sufficient statistic minus the observed sufficient statistic</strong>; for the standard Bernoulli and categorical models this collapses to <strong>prediction minus target</strong>, and for a Gaussian mean it is the residual scaled by the inverse variance. The chain rule then turns that residual into gradients for whatever parameters you actually use.
+      </div>
+
+      <h3 class="font-sans-ui text-lg font-bold text-slate-800 mt-7 mb-3">
+        The prompt example, in one place
+      </h3>
+      <div class="bg-white border border-rose-200 rounded-lg p-5 my-5">
+        <p class="font-sans-ui text-sm text-slate-700 mb-3">
+          Binary logistic model, $y=1$, $z=0$:
+        </p>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 font-sans-ui text-sm">
+          <div class="bg-rose-50 rounded-lg p-3 border border-rose-100">
+            <div class="text-[10px] font-bold uppercase tracking-wider text-rose-700 mb-1">Probability</div>
+            <div class="font-mono-code text-lg text-slate-900">$p=0.5$</div>
+          </div>
+          <div class="bg-rose-50 rounded-lg p-3 border border-rose-100">
+            <div class="text-[10px] font-bold uppercase tracking-wider text-rose-700 mb-1">NLL</div>
+            <div class="font-mono-code text-lg text-slate-900">$L=\log 2\approx0.693$</div>
+          </div>
+          <div class="bg-rose-50 rounded-lg p-3 border border-rose-100">
+            <div class="text-[10px] font-bold uppercase tracking-wider text-rose-700 mb-1">Logit gradient</div>
+            <div class="font-mono-code text-lg text-slate-900">$\partial L/\partial z=-0.5$</div>
+          </div>
+        </div>
+        <p class="font-sans-ui text-xs text-slate-600 mt-3">
+          The label is $1$ and the model predicted only $0.5$, so gradient descent increases $z$. This is the entire content of the calculation: the sign tells you which way to move, and the magnitude tells you how hard to push.
+        </p>
+      </div>
+
+      <h3 class="font-sans-ui text-lg font-bold text-slate-800 mt-7 mb-3">
+        Interview and exam checklist
+      </h3>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 my-5 font-sans-ui text-sm">
+        <div class="bg-white border border-slate-200 rounded-lg p-4">
+          <div class="text-xs font-bold uppercase tracking-wider text-blue-700 mb-1">Derivations</div>
+          <ul class="text-slate-600 text-xs space-y-1.5 list-disc pl-4">
+            <li>Derive $p-y$ by differentiating BCE and by using the logit form.</li>
+            <li>Derive $(\mu-x)/\sigma^2$ from the Gaussian log density.</li>
+            <li>Derive $q-y$ from log-sum-exp and from the softmax Jacobian.</li>
+            <li>Show that the softmax gradient sums to zero.</li>
+          </ul>
+        </div>
+        <div class="bg-white border border-slate-200 rounded-lg p-4">
+          <div class="text-xs font-bold uppercase tracking-wider text-blue-700 mb-1">Interpretations</div>
+          <ul class="text-slate-600 text-xs space-y-1.5 list-disc pl-4">
+            <li>Why BCE is preferred over MSE with a sigmoid.</li>
+            <li>Why Gaussian NLL is precision-weighted MSE.</li>
+            <li>Why the score has mean zero.</li>
+            <li>Why regularization is a prior.</li>
+          </ul>
+        </div>
+        <div class="bg-white border border-slate-200 rounded-lg p-4">
+          <div class="text-xs font-bold uppercase tracking-wider text-blue-700 mb-1">Implementation</div>
+          <ul class="text-slate-600 text-xs space-y-1.5 list-disc pl-4">
+            <li>Write stable BCE with logits.</li>
+            <li>Use log-softmax instead of softmax then log.</li>
+            <li>Parameterize $\sigma$ with $\log\sigma$.</li>
+            <li>Account for sum versus mean reduction.</li>
+          </ul>
+        </div>
+        <div class="bg-white border border-slate-200 rounded-lg p-4">
+          <div class="text-xs font-bold uppercase tracking-wider text-blue-700 mb-1">Connections</div>
+          <ul class="text-slate-600 text-xs space-y-1.5 list-disc pl-4">
+            <li>Exponential family: observed minus expected.</li>
+            <li>Fisher information as NLL curvature.</li>
+            <li>Natural gradient and preconditioning.</li>
+            <li>MAP estimation and weight decay.</li>
+          </ul>
+        </div>
+      </div>
+
+      <h3 class="font-sans-ui text-lg font-bold text-slate-800 mt-7 mb-3">
+        Where to go next
+      </h3>
+      <p class="mb-4">
+        The natural next step is to put these gradients inside a computational graph and derive backpropagation mechanically. After that, the optimization notes explain how the gradient's noise and scale interact with batch size and learning rate. The softmax notes go deeper into temperature, stability, and the full Jacobian.
+      </p>
+      <div class="flex flex-wrap gap-2 font-sans-ui text-xs">
+        <a href="./information_entropy_cross_entropy_notes.html" class="px-3 py-2 rounded-md bg-blue-50 border border-blue-200 text-blue-800 hover:bg-blue-100 transition font-medium">Part I: Information &amp; Cross-Entropy</a>
+        <a href="./softmax_cross_entropy_loss_notes.html" class="px-3 py-2 rounded-md bg-teal-50 border border-teal-200 text-teal-800 hover:bg-teal-100 transition font-medium">Part II: Softmax &amp; Cross-Entropy</a>
+        <a href="./sgd_batch_size_noise_notes.html" class="px-3 py-2 rounded-md bg-amber-50 border border-amber-200 text-amber-800 hover:bg-amber-100 transition font-medium">Part III: SGD &amp; Batch Size</a>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="border-t border-[#e5e2dc] bg-[#faf9f5] py-8 font-sans-ui text-xs text-slate-500">
+    <div class="max-w-5xl mx-auto px-5 sm:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div>
+        <span class="font-medium text-slate-600">Deep Learning Fundamentals</span> &middot; Visual Study Notes
+      </div>
+      <div class="flex flex-wrap items-center justify-center gap-4">
+        <a href="./information_entropy_cross_entropy_notes.html" class="hover:text-slate-800 transition">Part I: Information Theory</a>
+        <a href="./softmax_cross_entropy_loss_notes.html" class="hover:text-slate-800 transition">Part II: Softmax &amp; Loss</a>
+        <a href="./sgd_batch_size_noise_notes.html" class="hover:text-slate-800 transition">Part III: SGD &amp; Batch Size</a>
+        <a href="./log_likelihood_gradients_notes.html" class="text-rose-700 font-medium">Part IV: Likelihood Gradients</a>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    (function () {
+      'use strict';
+
+      // ------------------------------------------------------------
+      // Helpers
+      // ------------------------------------------------------------
+      function sigmoid(z) {
+        if (z >= 0) return 1 / (1 + Math.exp(-z));
+        var ez = Math.exp(z);
+        return ez / (1 + ez);
+      }
+
+      function softplus(z) {
+        return Math.max(z, 0) + Math.log1p(Math.exp(-Math.abs(z)));
+      }
+
+      function fmt(x, digits) {
+        if (!isFinite(x)) return '—';
+        return x.toFixed(digits === undefined ? 4 : digits);
+      }
+
+      function clamp(x, lo, hi) {
+        return Math.max(lo, Math.min(hi, x));
+      }
+
+      function renderMath(el) {
+        if (typeof renderMathInElement === 'function') {
+          renderMathInElement(el, {
+            delimiters: [
+              { left: '$$', right: '$$', display: true },
+              { left: '$', right: '$', display: false },
+              { left: '\\(', right: '\\)', display: false },
+              { left: '\\[', right: '\\]', display: true }
+            ],
+            throwOnError: false
+          });
+        }
+      }
+
+      function buildPath(xMin, xMax, steps, mapX, mapY, fn) {
+        var d = '';
+        for (var i = 0; i <= steps; i++) {
+          var x = xMin + (xMax - xMin) * i / steps;
+          var y = fn(x);
+          d += (i === 0 ? 'M' : 'L') + mapX(x).toFixed(2) + ' ' + mapY(y).toFixed(2) + ' ';
+        }
+        return d.trim();
+      }
+
+      // ------------------------------------------------------------
+      // Smooth section navigation
+      // ------------------------------------------------------------
+      document.querySelectorAll('.nav-jump').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var target = document.getElementById(btn.getAttribute('data-scroll'));
+          if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+      });
+
+      // ------------------------------------------------------------
+      // Lab 1: binary logistic regression
+      // ------------------------------------------------------------
+      var labX = document.getElementById('lab-x');
+      var labW = document.getElementById('lab-w');
+      var labB = document.getElementById('lab-b');
+      var labXVal = document.getElementById('lab-x-val');
+      var labWVal = document.getElementById('lab-w-val');
+      var labBVal = document.getElementById('lab-b-val');
+      var labY0 = document.getElementById('lab-y0');
+      var labY1 = document.getElementById('lab-y1');
+      var labLr = document.getElementById('lab-lr');
+      var labSteps = 0;
+      var labLabel = 1;
+
+      var labZ = document.getElementById('lab-z');
+      var labP = document.getElementById('lab-p');
+      var labLossEl = document.getElementById('lab-loss');
+      var labDz = document.getElementById('lab-dz');
+      var labDw = document.getElementById('lab-dw');
+      var labDb = document.getElementById('lab-db');
+      var labMseGrad = document.getElementById('lab-mse-grad');
+      var labChain = document.getElementById('lab-chain');
+      var labStepCount = document.getElementById('lab-step-count');
+
+      var sigCurve = document.getElementById('lab-sig-curve');
+      var sigPoint = document.getElementById('lab-sig-point');
+      var sigTangent = document.getElementById('lab-sig-tangent');
+      var sigDrop = document.getElementById('lab-sig-drop');
+      var lossCurve = document.getElementById('lab-loss-curve');
+      var lossPoint = document.getElementById('lab-loss-point');
+      var lossDrop = document.getElementById('lab-loss-drop');
+
+      var SIG = { left: 44, right: 346, top: 14, bottom: 180, zMin: -6, zMax: 6 };
+
+      function sigX(z) {
+        return SIG.left + (z - SIG.zMin) / (SIG.zMax - SIG.zMin) * (SIG.right - SIG.left);
+      }
+
+      function sigY(p) {
+        return SIG.bottom - p * (SIG.bottom - SIG.top);
+      }
+
+      function labLoss(z, y) {
+        return y === 1 ? softplus(-z) : softplus(z);
+      }
+
+      function lossY(l) {
+        var maxLoss = 6.5;
+        return SIG.bottom - (l / maxLoss) * (SIG.bottom - SIG.top);
+      }
+
+      sigCurve.setAttribute('d', buildPath(-6, 6, 160, sigX, sigY, sigmoid));
+
+      function setLabLabel(y) {
+        labLabel = y;
+        labY0.classList.toggle('active', y === 0);
+        labY1.classList.toggle('active', y === 1);
+        updateLab();
+      }
+
+      function updateLab() {
+        var x = parseFloat(labX.value);
+        var w = parseFloat(labW.value);
+        var b = parseFloat(labB.value);
+        var z = w * x + b;
+        var p = sigmoid(z);
+        var loss = labLoss(z, labLabel);
+        var dz = p - labLabel;
+        var dw = dz * x;
+        var db = dz;
+        var mse = dz * p * (1 - p);
+
+        labXVal.textContent = x.toFixed(2);
+        labWVal.textContent = w.toFixed(2);
+        labBVal.textContent = b.toFixed(2);
+        labZ.textContent = fmt(z);
+        labP.textContent = fmt(p);
+        labLossEl.textContent = fmt(loss);
+        labDz.textContent = fmt(dz);
+        labDw.textContent = fmt(dw);
+        labDb.textContent = fmt(db);
+        labMseGrad.textContent = fmt(mse);
+        labStepCount.textContent = String(labSteps);
+
+        labChain.textContent = '∂L/∂z = p − y = ' + fmt(p) + ' − ' + labLabel + ' = ' + fmt(dz);
+
+        var px = sigX(z);
+        var py = sigY(p);
+        sigPoint.setAttribute('cx', px);
+        sigPoint.setAttribute('cy', py);
+        sigDrop.setAttribute('x1', px);
+        sigDrop.setAttribute('x2', px);
+        sigDrop.setAttribute('y1', py);
+
+        var slope = p * (1 - p);
+        var z1 = z - 1.2;
+        var z2 = z + 1.2;
+        var p1 = p + slope * (z1 - z);
+        var p2 = p + slope * (z2 - z);
+        sigTangent.setAttribute('x1', sigX(z1));
+        sigTangent.setAttribute('y1', sigY(p1));
+        sigTangent.setAttribute('x2', sigX(z2));
+        sigTangent.setAttribute('y2', sigY(p2));
+
+        lossCurve.setAttribute('d', buildPath(-6, 6, 160, sigX, lossY, function (zz) {
+          return labLoss(zz, labLabel);
+        }));
+        var lx = sigX(z);
+        var ly = lossY(loss);
+        lossPoint.setAttribute('cx', lx);
+        lossPoint.setAttribute('cy', ly);
+        lossDrop.setAttribute('x1', lx);
+        lossDrop.setAttribute('x2', lx);
+        lossDrop.setAttribute('y1', ly);
+      }
+
+      [labX, labW, labB].forEach(function (slider) {
+        slider.addEventListener('input', updateLab);
+      });
+
+      labY0.addEventListener('click', function () { setLabLabel(0); });
+      labY1.addEventListener('click', function () { setLabLabel(1); });
+
+      document.getElementById('lab-flip').addEventListener('click', function () {
+        setLabLabel(1 - labLabel);
+      });
+
+      document.getElementById('lab-step').addEventListener('click', function () {
+        var x = parseFloat(labX.value);
+        var w = parseFloat(labW.value);
+        var b = parseFloat(labB.value);
+        var lr = parseFloat(labLr.value);
+        var p = sigmoid(w * x + b);
+        var dz = p - labLabel;
+        labW.value = clamp(w - lr * dz * x, -5, 5);
+        labB.value = clamp(b - lr * dz, -5, 5);
+        labSteps += 1;
+        updateLab();
+      });
+
+      document.getElementById('lab-reset').addEventListener('click', function () {
+        labX.value = 1.5;
+        labW.value = 0.8;
+        labB.value = -0.5;
+        labLr.value = '0.5';
+        labSteps = 0;
+        setLabLabel(1);
+      });
+
+      function setLabPreset(x, w, b, y) {
+        labX.value = x;
+        labW.value = w;
+        labB.value = b;
+        labSteps = 0;
+        setLabLabel(y);
+      }
+
+      document.getElementById('lab-preset-prompt').addEventListener('click', function () {
+        setLabPreset(1.5, 0.8, -0.5, 1);
+      });
+      document.getElementById('lab-preset-wrong').addEventListener('click', function () {
+        setLabPreset(2, 2, 2, 0);
+      });
+      document.getElementById('lab-preset-uncertain').addEventListener('click', function () {
+        setLabPreset(0, 0, 0, 1);
+      });
+      document.getElementById('lab-preset-right').addEventListener('click', function () {
+        setLabPreset(1, 2, 0, 1);
+      });
+
+      // ------------------------------------------------------------
+      // Lab 2: Gaussian likelihood
+      // ------------------------------------------------------------
+      var gX = document.getElementById('g-x');
+      var gMu = document.getElementById('g-mu');
+      var gSigma = document.getElementById('g-sigma');
+      var gXVal = document.getElementById('g-x-val');
+      var gMuVal = document.getElementById('g-mu-val');
+      var gSigmaVal = document.getElementById('g-sigma-val');
+
+      var gLogp = document.getElementById('g-logp');
+      var gNll = document.getElementById('g-nll');
+      var gMse = document.getElementById('g-mse');
+      var gDmu = document.getElementById('g-dmu');
+      var gDvar = document.getElementById('g-dvar');
+      var gDsigma = document.getElementById('g-dsigma');
+      var gChain = document.getElementById('g-chain');
+
+      var gCurve = document.getElementById('g-curve');
+      var gPoint = document.getElementById('g-point');
+      var gMuLine = document.getElementById('g-mu-line');
+      var gXLine = document.getElementById('g-x-line');
+      var gResidLine = document.getElementById('g-resid-line');
+
+      var G = { left: 44, right: 346, top: 14, bottom: 180, xMin: -8, xMax: 8, yMax: 1.45 };
+
+      function gx(x) {
+        return G.left + (x - G.xMin) / (G.xMax - G.xMin) * (G.right - G.left);
+      }
+
+      function gy(d) {
+        return G.bottom - (d / G.yMax) * (G.bottom - G.top);
+      }
+
+      function updateGaussian() {
+        var x = parseFloat(gX.value);
+        var mu = parseFloat(gMu.value);
+        var sigma = parseFloat(gSigma.value);
+        var sigma2 = sigma * sigma;
+        var r = x - mu;
+        var logp = -0.5 * Math.log(2 * Math.PI * sigma2) - (r * r) / (2 * sigma2);
+        var nll = -logp;
+        var dmu = (mu - x) / sigma2;
+        var dvar = (sigma2 - r * r) / (2 * sigma2 * sigma2);
+        var dsigma = 1 / sigma - (r * r) / (sigma * sigma * sigma);
+        var mse = r * r;
+
+        gXVal.textContent = x.toFixed(2);
+        gMuVal.textContent = mu.toFixed(2);
+        gSigmaVal.textContent = sigma.toFixed(2);
+        gLogp.textContent = fmt(logp);
+        gNll.textContent = fmt(nll);
+        gMse.textContent = fmt(mse);
+        gDmu.textContent = fmt(dmu);
+        gDvar.textContent = fmt(dvar);
+        gDsigma.textContent = fmt(dsigma);
+
+        gChain.textContent = '∂L/∂μ = (μ − x)/σ² = (' + mu.toFixed(2) + ' − ' + x.toFixed(2) + ')/' + sigma2.toFixed(2) + ' = ' + fmt(dmu);
+
+        var density = function (xx) {
+          return (1 / (sigma * Math.sqrt(2 * Math.PI))) *
+            Math.exp(-((xx - mu) * (xx - mu)) / (2 * sigma2));
+        };
+
+        gCurve.setAttribute('d', buildPath(-8, 8, 180, gx, gy, density));
+
+        var px = gx(x);
+        var py = gy(density(x));
+        gPoint.setAttribute('cx', px);
+        gPoint.setAttribute('cy', py);
+
+        gMuLine.setAttribute('x1', gx(mu));
+        gMuLine.setAttribute('x2', gx(mu));
+        gXLine.setAttribute('x1', px);
+        gXLine.setAttribute('x2', px);
+        gResidLine.setAttribute('x1', gx(mu));
+        gResidLine.setAttribute('x2', px);
+      }
+
+      [gX, gMu, gSigma].forEach(function (slider) {
+        slider.addEventListener('input', updateGaussian);
+      });
+
+      document.getElementById('g-preset-default').addEventListener('click', function () {
+        gX.value = 5;
+        gMu.value = 3;
+        gSigma.value = 1.5;
+        updateGaussian();
+      });
+      document.getElementById('g-preset-fit').addEventListener('click', function () {
+        gX.value = 5;
+        gMu.value = 5;
+        gSigma.value = 1.5;
+        updateGaussian();
+      });
+      document.getElementById('g-preset-outlier').addEventListener('click', function () {
+        gX.value = 5;
+        gMu.value = 0;
+        gSigma.value = 1;
+        updateGaussian();
+      });
+
+      // ------------------------------------------------------------
+      // Practice problems
+      // ------------------------------------------------------------
+      function checkNumeric(inputId, resultId, answerId, answer, tol, correctMsg, wrongMsg) {
+        var input = document.getElementById(inputId);
+        var result = document.getElementById(resultId);
+        var value = parseFloat(input.value);
+        if (!isFinite(value)) {
+          result.innerHTML = '<span class="text-amber-700">Enter a number first.</span>';
+          return;
+        }
+        if (Math.abs(value - answer) <= tol) {
+          result.innerHTML = '<span class="text-teal-700">✓ Correct!</span> ' + correctMsg;
+          document.getElementById(answerId).classList.add('show');
+        } else {
+          result.innerHTML = '<span class="text-rose-700">✗ Not quite.</span> ' + wrongMsg;
+        }
+        renderMath(result);
+      }
+
+      function checkChoice(name, correct, resultId, answerId, correctMsg, wrongMsg) {
+        var selected = document.querySelector('input[name="' + name + '"]:checked');
+        var result = document.getElementById(resultId);
+        if (!selected) {
+          result.innerHTML = '<span class="text-amber-700">Please select an option.</span>';
+          return;
+        }
+        if (selected.value === correct) {
+          result.innerHTML = '<span class="text-teal-700">✓ Correct!</span> ' + correctMsg;
+          document.getElementById(answerId).classList.add('show');
+        } else {
+          result.innerHTML = '<span class="text-rose-700">✗ Not quite.</span> ' + wrongMsg;
+        }
+        renderMath(result);
+      }
+
+      document.getElementById('p1-check').addEventListener('click', function () {
+        checkNumeric('p1-input', 'p1-result', 'p1-answer', 0.3649, 0.01,
+          '$(p-y)x=(0.1824)(2)\\approx0.3649$.',
+          'Compute $z=-1.5$, then $p=\\sigma(-1.5)\\approx0.1824$, then $(p-y)x$.');
+      });
+      document.getElementById('p2-check').addEventListener('click', function () {
+        checkChoice('q2', 'a', 'p2-result', 'p2-answer',
+          'The sigmoid derivative $p(1-p)$ is the extra factor in MSE.',
+          'Compare $p-y$ with $(p-y)p(1-p)$ at $p=0.01$.');
+      });
+      document.getElementById('p3-check').addEventListener('click', function () {
+        checkNumeric('p3-input', 'p3-result', 'p3-answer', -0.5, 0.01,
+          '$(\\mu-x)/\\sigma^2=(3-5)/4=-0.5$.',
+          'Remember that $\\sigma^2=4$, not $2$. The formula is $(\\mu-x)/\\sigma^2$.');
+      });
+      document.getElementById('p4-check').addEventListener('click', function () {
+        checkNumeric('p4-input', 'p4-result', 'p4-answer', -0.91, 0.01,
+          '$q_2-1\\approx0.0900-1=-0.9100$.',
+          'Compute $q=\\operatorname{softmax}([1,2,0])$ first. The true class has $y_2=1$.');
+      });
+      document.getElementById('p5-check').addEventListener('click', function () {
+        checkNumeric('p5-input', 'p5-result', 'p5-answer', 0.2333, 0.01,
+          '$\\frac13[(-0.1)(1)+(0.2)(2)+(-0.4)(-1)]\\approx0.2333$.',
+          'Compute $p-y=[-0.1,0.2,-0.4]$, multiply by $x$, then average.');
+      });
+      document.getElementById('p6-check').addEventListener('click', function () {
+        checkChoice('q6', 'b', 'p6-result', 'p6-answer',
+          'This is the softplus form with a negative exponent.',
+          'Use $\\log(1+e^z)=\\max(z,0)+\\log(1+e^{-|z|})$.');
+      });
+
+      ['p1', 'p2', 'p3', 'p4', 'p5', 'p6'].forEach(function (id) {
+        var btn = document.getElementById(id + '-hint-btn');
+        if (btn) {
+          btn.addEventListener('click', function () {
+            document.getElementById(id + '-hint').classList.toggle('show');
+          });
+        }
+      });
+
+      // ------------------------------------------------------------
+      // Initialize
+      // ------------------------------------------------------------
+      function initAll() {
+        updateLab();
+        updateGaussian();
+        renderMath(document.body);
+      }
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initAll);
+      } else {
+        initAll();
+      }
+    })();
+  </script>
+</body>
+</html>

@@ -89,7 +89,7 @@
         <h2 class="font-sans-ui text-sm font-bold uppercase tracking-wider text-slate-700">
           Published Notes & Interactive Modules
         </h2>
-        <span class="font-sans-ui text-xs text-slate-500 font-medium">3 Notes Available</span>
+        <span class="font-sans-ui text-xs text-slate-500 font-medium">4 Notes Available</span>
       </div>
 
       <!-- Notes Grid -->
@@ -218,6 +218,49 @@
           </div>
         </article>
 
+        <!-- Featured Item 4: Log-Likelihood Gradients Notes -->
+        <article class="article-card rounded-xl p-6 sm:p-8">
+          <div class="flex flex-wrap items-center gap-2 font-sans-ui text-xs mb-3">
+            <span class="px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-800 font-semibold">Part IV &bull; Probabilistic Losses</span>
+            <span class="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-medium">Interactive Labs &amp; Practice</span>
+            <span class="text-slate-400">&bull;</span>
+            <span class="text-slate-500 font-mono-code">Likelihood &amp; Gradients</span>
+          </div>
+
+          <h3 class="font-sans-ui text-2xl font-bold text-slate-900 mb-3">
+            <a href="log_likelihood_gradients_notes.html" class="hover:text-blue-700 transition">
+              Log-Likelihood Gradients: The One Pattern Behind Logistic, Gaussian, and Softmax Losses
+            </a>
+          </h3>
+
+          <p class="text-slate-600 text-base leading-relaxed mb-6">
+            Why does binary cross-entropy give <span class="font-mono-code text-sm">p &minus; y</span>, a Gaussian give <span class="font-mono-code text-sm">(&mu; &minus; x)/&sigma;&sup2;</span>, and softmax give <span class="font-mono-code text-sm">q &minus; y</span>? A detailed, visual walkthrough of maximum likelihood, the score function, exponential families, and the chain-rule cancellations that make these gradients so simple. Includes two interactive labs, stable implementations, and six practice problems with full solutions.
+          </p>
+
+          <div class="flex flex-wrap items-center gap-1.5 mb-6 font-sans-ui text-xs text-slate-600">
+            <span class="bg-slate-100 px-2 py-1 rounded">Maximum Likelihood</span>
+            <span class="bg-slate-100 px-2 py-1 rounded">Score Function</span>
+            <span class="bg-slate-100 px-2 py-1 rounded">Bernoulli / Logistic</span>
+            <span class="bg-slate-100 px-2 py-1 rounded">Gaussian NLL</span>
+            <span class="bg-slate-100 px-2 py-1 rounded">Softmax / Categorical</span>
+            <span class="bg-slate-100 px-2 py-1 rounded">Exponential Family</span>
+            <span class="bg-slate-100 px-2 py-1 rounded">Numerical Stability</span>
+            <span class="bg-slate-100 px-2 py-1 rounded">Interactive Labs</span>
+          </div>
+
+          <div class="pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-4 font-sans-ui">
+            <div class="text-xs text-slate-500">
+              Prerequisites: <a href="information_entropy_cross_entropy_notes.html" class="text-blue-700 hover:underline font-medium">Part I</a> &amp; <a href="softmax_cross_entropy_loss_notes.html" class="text-blue-700 hover:underline font-medium">Part II</a>
+            </div>
+            <a href="log_likelihood_gradients_notes.html" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold transition shadow-sm">
+              Read Notes
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/>
+              </svg>
+            </a>
+          </div>
+        </article>
+
         <!-- Upcoming Topics Card -->
         <div class="rounded-xl border border-dashed border-[#d8d5cb] p-6 sm:p-8 bg-white/40">
           <div class="font-sans-ui text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">
@@ -246,10 +289,11 @@
       <div>
         <span>Deep Learning Fundamentals</span> &middot; Visual Study Notes
       </div>
-      <div class="flex items-center gap-4">
+      <div class="flex flex-wrap items-center justify-center gap-4">
         <a href="information_entropy_cross_entropy_notes.html" class="hover:text-slate-800 transition">Part I: Information Theory</a>
         <a href="softmax_cross_entropy_loss_notes.html" class="hover:text-slate-800 transition">Part II: Softmax &amp; Loss</a>
         <a href="sgd_batch_size_noise_notes.html" class="hover:text-slate-800 transition">Part III: SGD &amp; Batch Size</a>
+        <a href="log_likelihood_gradients_notes.html" class="hover:text-slate-800 transition">Part IV: Likelihood Gradients</a>
         <a href="https://github.com/imprashant998/deep-learning-fundamentals" target="_blank" rel="noopener noreferrer" class="hover:text-slate-800 transition">GitHub</a>
       </div>
     </div>
